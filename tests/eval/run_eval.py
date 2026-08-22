@@ -71,13 +71,33 @@ QUESTIONS = [
 
 def run_evaluation() -> None:
     print("Starting pipeline evaluation...")
+    import requests
+    
     pipeline = Pipeline()
     results = []
     
     passed_count = 0
     failed_count = 0
+    start_time = time.time()
 
-    for q in QUESTIONS:
+    for i, q in enumerate(QUESTIONS):
+        # check total timeout (5 minutes)
+        if time.time() - start_time > 300:
+            print(f"\nHarness timeout exceeded. Skipping remaining {len(QUESTIONS) - i} questions.")
+            for remaining_q in QUESTIONS[i:]:
+                failed_count += 1
+                results.append({
+                    "id": remaining_q["id"],
+                    "query": remaining_q["query"],
+                    "decision": "TIMEOUT",
+                    "expected_decision": remaining_q["expected_decision"],
+                    "pass": False,
+                    "fail_reason": "Harness timeout",
+                    "answer": "",
+                    "citations": [],
+                })
+            break
+
         print(f"\nRunning {q['id']}: {q['query']}")
         try:
             result = pipeline.run(q["query"])
@@ -131,6 +151,19 @@ def run_evaluation() -> None:
                 "citations": result.citations,
             })
             
+        except (requests.exceptions.Timeout, requests.exceptions.HTTPError) as e:
+            failed_count += 1
+            print(f"[FAIL] - API error: {str(e)}")
+            results.append({
+                "id": q["id"],
+                "query": q["query"],
+                "decision": "ERROR",
+                "expected_decision": q["expected_decision"],
+                "pass": False,
+                "fail_reason": f"API error: {str(e)}",
+                "answer": "",
+                "citations": [],
+            })
         except Exception as e:
             failed_count += 1
             print(f"[FAIL] - Pipeline errored: {str(e)}")
@@ -146,7 +179,7 @@ def run_evaluation() -> None:
             })
         
         # Sleep to prevent hitting Gemini rate limits (15 RPM)
-        time.sleep(6)
+        time.sleep(3)
 
     # Ensure tests/eval directory exists
     output_path = Path("tests/eval/results.json")

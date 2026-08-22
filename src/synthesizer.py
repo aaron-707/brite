@@ -180,12 +180,14 @@ class Synthesizer:
 
         # Call the API with exponential backoff on 429 rate limit errors
         import time
-        max_api_attempts = 5
-        backoff = 4.0
+        max_api_attempts = 3
+        backoff = 2.0
+        backoff_cap = 16.0
         for attempt in range(max_api_attempts):
             resp = requests.post(url, json=body, headers=headers, timeout=60)
             if resp.status_code == 429:
-                time.sleep(backoff)
+                sleep_time = min(backoff, backoff_cap)
+                time.sleep(sleep_time)
                 backoff *= 2.0
                 continue
             resp.raise_for_status()
