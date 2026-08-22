@@ -20,7 +20,7 @@ import yaml
 from .retriever import RetrievalResult, STOPWORDS
 from .synthesizer import SynthesizerOutput
 
-_CITE_RE = re.compile(r"§?(\d+\.\d+\.\d+)")
+_CITE_RE = re.compile(r"§?(\d+\.\d+(?:\.\d+)?)")
 
 # Sentences that are purely structural / connective — not factual claims
 _NON_FACTUAL_PREFIXES = (

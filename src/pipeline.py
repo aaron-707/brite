@@ -10,11 +10,25 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+import re
+
 from .citation_validator import CitationValidator, ValidationResult
 from .gate import Gate, GateDecision
 from .parser import Clause, build_clause_index, parse_corpus
 from .retriever import HybridRetriever, RetrievalResult
 from .synthesizer import Synthesizer, SynthesizerOutput
+
+
+def _dedup_conflicts(conflicts: list[str]) -> list[str]:
+    seen_clauses = set()
+    deduped = []
+    for entry in conflicts:
+        clause_ids = re.findall(r"§?(\d+\.\d+(?:\.\d+)?)", entry)
+        key = frozenset(clause_ids)
+        if key not in seen_clauses:
+            seen_clauses.add(key)
+            deduped.append(entry)
+    return deduped
 
 
 @dataclass
@@ -28,6 +42,7 @@ class PipelineResult:
     gate_decision: GateDecision
     validation: ValidationResult | None = None
     retrieval_results: list[RetrievalResult] | None = None
+
 
 
 class Pipeline:
@@ -83,6 +98,10 @@ class Pipeline:
                 gate_decision=gate_decision,
                 retrieval_results=results,
             )
+
+        # Deduplicate conflicts before passing to synthesizer
+        if gate_decision.conflicts:
+            gate_decision.conflicts = _dedup_conflicts(gate_decision.conflicts)
 
         # Step 3 & 4: Synthesize + Validate (with retry)
         correction: str | None = None
