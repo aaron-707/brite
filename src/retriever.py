@@ -110,6 +110,45 @@ _DEFAULT_CONFIG = {
 }
 
 
+QUERY_EXPANSIONS = {
+    "car": ["motor vehicle", "vehicle"],
+    "vehicle": ["motor vehicle", "car"],
+    "automobile": ["motor vehicle", "car"],
+    "how long": ["timeframe", "deadline", "period", "days", "weeks"],
+    "complete": ["conclude", "finish", "determine"],
+    "review": ["review", "determination", "assessment"],
+}
+
+
+def _expand_query(query: str) -> str:
+    q_lower = query.lower()
+    expansions = []
+    
+    # Check single-word tokens
+    tokens = q_lower.split()
+    for token in tokens:
+        # Strip punctuation
+        clean_token = re.sub(r"[^\w]", "", token)
+        if clean_token in QUERY_EXPANSIONS:
+            expansions.extend(QUERY_EXPANSIONS[clean_token])
+            
+    # Check multi-word phrases
+    for key, values in QUERY_EXPANSIONS.items():
+        if " " in key and key in q_lower:
+            expansions.extend(values)
+            
+    if expansions:
+        # Deduplicate preserving order
+        seen = set()
+        deduped = []
+        for e in expansions:
+            if e not in seen:
+                seen.add(e)
+                deduped.append(e)
+        return query + " " + " ".join(deduped)
+    return query
+
+
 class HybridRetriever:
     """Hybrid BM25 + TF-IDF retriever with RRF fusion."""
 
@@ -159,13 +198,15 @@ class HybridRetriever:
 
         n = len(self.clauses)
 
+        expanded_question = _expand_query(question)
+
         # ── BM25 scores & ranks ──
-        bm25_scores = self._bm25.score(_tokenize(question))
+        bm25_scores = self._bm25.score(_tokenize(expanded_question))
         bm25_ranking = sorted(range(n), key=lambda i: bm25_scores[i], reverse=True)
         bm25_rank_map = {idx: rank for rank, idx in enumerate(bm25_ranking)}
 
         # ── TF-IDF scores & ranks ──
-        q_vec = self._tfidf_vec.transform([question])
+        q_vec = self._tfidf_vec.transform([expanded_question])
         tfidf_scores = cosine_similarity(q_vec, self._tfidf_matrix).flatten()
         tfidf_ranking = sorted(range(n), key=lambda i: tfidf_scores[i], reverse=True)
         tfidf_rank_map = {idx: rank for rank, idx in enumerate(tfidf_ranking)}
