@@ -116,10 +116,12 @@ class Pipeline:
                 )
 
         # Step 1: Retrieve
-        results = self.retriever.query(question)
+        from .retriever import _expand_query
+        expanded_question = _expand_query(question)
+        results = self.retriever.query(expanded_question)
 
         # Step 2: Gate
-        gate_decision = self.gate.evaluate(question, results, self.clause_index)
+        gate_decision = self.gate.evaluate(expanded_question, results, self.clause_index)
 
         if gate_decision.decision == "REFUSE":
             return PipelineResult(
