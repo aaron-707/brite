@@ -117,35 +117,39 @@ QUERY_EXPANSIONS = {
     "how long": ["timeframe", "deadline", "period", "days", "weeks"],
     "complete": ["conclude", "finish", "determine"],
     "review": ["review", "determination", "assessment"],
+    
+    # colloquial for award termination / reapplication
+    "cut off": ["terminated", "termination", "ceased", "reinstatement"],
+    "kicked off": ["terminated", "termination", "ceased"],
+    "stopped": ["terminated", "ceased", "suspended"],
+    "benefits": ["assistance", "award", "program"],
+    "help": ["assistance", "eligible", "award"],
+    "mum": ["person", "applicant", "recipient"],
+    "mom": ["person", "applicant", "recipient"],
+    "she": ["person", "applicant", "recipient"],
+    "he": ["person", "applicant", "recipient"],
+    "they": ["household", "applicant", "recipient"],
+    "my": [],   # drop possessives — no expansion needed
+    "get": ["apply", "receive", "eligible"],
 }
 
 
 def _expand_query(query: str) -> str:
-    q_lower = query.lower()
+    # Strip basic punctuation to ensure clean matching
+    q_norm = query.lower().replace("?", "").replace(".", "").replace(",", "").replace("!", "")
+    tokens = q_norm.split()
     expansions = []
-    
-    # Check single-word tokens
-    tokens = q_lower.split()
+    # Check bigrams first
+    for i in range(len(tokens) - 1):
+        bigram = tokens[i] + " " + tokens[i+1]
+        if bigram in QUERY_EXPANSIONS:
+            expansions.extend(QUERY_EXPANSIONS[bigram])
+    # Then single tokens
     for token in tokens:
-        # Strip punctuation
-        clean_token = re.sub(r"[^\w]", "", token)
-        if clean_token in QUERY_EXPANSIONS:
-            expansions.extend(QUERY_EXPANSIONS[clean_token])
-            
-    # Check multi-word phrases
-    for key, values in QUERY_EXPANSIONS.items():
-        if " " in key and key in q_lower:
-            expansions.extend(values)
-            
+        if token in QUERY_EXPANSIONS:
+            expansions.extend(QUERY_EXPANSIONS[token])
     if expansions:
-        # Deduplicate preserving order
-        seen = set()
-        deduped = []
-        for e in expansions:
-            if e not in seen:
-                seen.add(e)
-                deduped.append(e)
-        return query + " " + " ".join(deduped)
+        return query + " " + " ".join(set(expansions))
     return query
 
 

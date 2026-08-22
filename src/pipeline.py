@@ -48,6 +48,8 @@ class PipelineResult:
 class Pipeline:
     """Orchestrates the full RAG pipeline."""
 
+    _RAW_CLAUSE_RE = re.compile(r"^§?(\d+\.\d+(?:\.\d+)?)$")
+
     def __init__(
         self,
         corpus_path: str | Path | None = None,
@@ -83,6 +85,36 @@ class Pipeline:
         Returns:
             PipelineResult with the decision, answer, and supporting data.
         """
+        # Fast path: raw clause reference lookup
+        stripped = question.strip()
+        match = self._RAW_CLAUSE_RE.match(stripped)
+        if match:
+            clause_id = match.group(1)
+            clause = self.clause_index.get(clause_id)
+            if clause:
+                return PipelineResult(
+                    question=question,
+                    decision="ANSWER",
+                    answer=clause.text,
+                    citations=[clause_id],
+                    gate_decision=GateDecision(
+                        decision="ANSWER",
+                        reason=f"Raw clause §{clause_id} lookup request.",
+                    ),
+                    validation=ValidationResult(valid=True, errors=[]),
+                )
+            else:
+                return PipelineResult(
+                    question=question,
+                    decision="REFUSE",
+                    answer=f"Clause §{clause_id} was not found in the manual.",
+                    citations=[],
+                    gate_decision=GateDecision(
+                        decision="REFUSE",
+                        reason=f"Clause §{clause_id} not found.",
+                    ),
+                )
+
         # Step 1: Retrieve
         results = self.retriever.query(question)
 
