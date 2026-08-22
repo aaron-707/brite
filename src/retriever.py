@@ -152,6 +152,15 @@ QUERY_EXPANSIONS = {
     "savings":  ["resources", "countable resources", "resource"],
     "overpaid": ["overpayment", "overpayments", "recovery", "recover"],
     "pay":      ["recovery", "recover", "repay"],
+    "no":       ["review", "appeal", "panel", "reinstatement"],
+    "said":     ["review", "appeal", "determination", "panel"],
+    "refused":  ["review", "appeal", "panel", "reinstatement"],
+    "denied":   ["review", "appeal", "panel", "reinstatement"],
+    "rejected": ["review", "appeal", "panel"],
+    "disagree": ["review", "appeal", "panel"],
+    "wrong":    ["review", "appeal", "error", "waiver"],
+    "mistake":  ["review", "waiver", "error"],
+    "unfair":   ["review", "appeal", "hardship", "waiver"],
 }
 
 
