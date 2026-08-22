@@ -101,6 +101,15 @@ class Gate:
         Returns:
             A GateDecision with the decision, reason, and any conflicts.
         """
+        if not hasattr(self, "_high_freq"):
+            doc_counts: dict[str, int] = {}
+            for cid, c in all_clauses.items():
+                seen_tokens = set(re.findall(r"[a-z0-9]+", c.text.lower()))
+                for token in seen_tokens:
+                    doc_counts[token] = doc_counts.get(token, 0) + 1
+            threshold = len(all_clauses) * 0.15
+            self._high_freq = {t for t, count in doc_counts.items() if count > threshold}
+
         if not results:
             return GateDecision(
                 decision="REFUSE",
@@ -173,11 +182,12 @@ class Gate:
                 )
                 continue
 
-            # Term overlap check: look at preceding ~6 words, excluding single chars
+            # Term overlap check: look at preceding ~6 words, excluding single chars & high-freq words
             window = source_text[max(0, match_start - 150):match_start]
             tokens = [t for t in re.findall(r"[a-z0-9]+", window.lower()) 
                       if t not in STOPWORDS and len(t) > 1]
-            key_terms = tokens[-6:] if len(tokens) >= 6 else tokens
+            filtered_tokens = [t for t in tokens if t not in self._high_freq]
+            key_terms = filtered_tokens[-6:] if len(filtered_tokens) >= 6 else filtered_tokens
             
             has_overlap = False
             if not key_terms:
@@ -186,14 +196,20 @@ class Gate:
                 target_text = " ".join(c.text.lower() for c in resolved)
                 target_tokens = set(re.findall(r"[a-z0-9]+", target_text))
                 for term in key_terms:
+                    # Exact match
                     if term in target_tokens:
                         has_overlap = True
                         break
                     # prefix match for stemming (e.g. 'determined' vs 'determines')
                     if len(term) >= 5:
                         prefix = term[:5]
-                        if any(t.startswith(prefix) for t in target_tokens if len(t) >= 5):
-                            has_overlap = True
+                        # Only allow prefix match if the target token is also not high-freq
+                        for t in target_tokens:
+                            if len(t) >= 5 and t.startswith(prefix):
+                                if t not in self._high_freq:
+                                    has_overlap = True
+                                    break
+                        if has_overlap:
                             break
 
             if not has_overlap:
