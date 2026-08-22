@@ -132,7 +132,7 @@ QUERY_EXPANSIONS = {
     "my": [],   # drop possessives — no expansion needed
     "get": ["apply", "receive", "eligible"],
 
-    "partner":  ["spouse", "couple", "household member", "member", "joint"],
+    "partner":  ["spouse", "couple", "household member", "ordinarily resides", "shares living arrangements", "member", "joint"],
     "husband":  ["spouse", "couple", "household member"],
     "wife":     ["spouse", "couple", "household member"],
     "boyfriend": ["couple", "household member", "member"],
@@ -150,6 +150,8 @@ QUERY_EXPANSIONS = {
     "live":     ["reside", "residence", "resident"],
     "living":   ["reside", "residence", "resident"],
     "savings":  ["resources", "countable resources", "resource"],
+    "overpaid": ["overpayment", "overpayments", "recovery", "recover"],
+    "pay":      ["recovery", "recover", "repay"],
 }
 
 
