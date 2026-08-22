@@ -70,6 +70,14 @@ Return your response as a JSON object with the following fields:
 - "citations": An array of every clause id cited in the answer (e.g. ["4.3.2", "9.1.4"]).
 """
 
+_NO_COVERAGE_INSTRUCTION = """\
+The retriever found no clauses in the manual relevant to this query. Do not speculate or draw on general knowledge. Tell the caseworker clearly that the manual does not cover this matter and direct them to contact their district office or supervisor for guidance.
+
+Return your response as a JSON object with the following fields:
+- "answer": The answer text directing the caseworker to contact their district office or supervisor.
+- "citations": An empty array [].
+"""
+
 # JSON schema for structured output
 _RESPONSE_SCHEMA = {
     "type": "OBJECT",
@@ -155,10 +163,12 @@ class Synthesizer:
 
         user_prompt = "\n".join(prompt_parts)
 
+        system_instruction = _NO_COVERAGE_INSTRUCTION if getattr(gate_decision, "no_coverage", False) else _SYSTEM_INSTRUCTION
+
         # Build request body
         body = {
             "system_instruction": {
-                "parts": [{"text": _SYSTEM_INSTRUCTION}]
+                "parts": [{"text": system_instruction}]
             },
             "contents": [
                 {

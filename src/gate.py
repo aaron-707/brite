@@ -91,6 +91,7 @@ class GateDecision:
     reason: str
     conflicts: list[str] = field(default_factory=list)
     next_step: str = ""
+    no_coverage: bool = False
 
 
 _DEFAULT_CONFIG = {
@@ -121,6 +122,19 @@ class Gate:
         self.xref_relevance_threshold: float = gate_cfg.get("xref_relevance_threshold", 0.3)
         self.numeric_contradiction: bool = gate_cfg.get("numeric_contradiction", True)
         self.top_k_for_gate: int = gate_cfg.get("top_k_for_gate", 5)
+
+    def _is_real_language_query(self, query: str) -> bool:
+        """
+        Returns True if the query contains at least 2 non-stopword
+        tokens of length >= 3. Distinguishes real-language queries
+        with vocabulary not in the manual from genuinely empty,
+        single-character, or gibberish inputs.
+        """
+        tokens = [
+            t for t in query.lower().split()
+            if t not in STOPWORDS and len(t) >= 3
+        ]
+        return len(tokens) >= 2
 
     def evaluate(
         self,
@@ -186,15 +200,26 @@ class Gate:
             coverage = 0.0
 
         if coverage < self.min_term_coverage:
-            return GateDecision(
-                decision="REFUSE",
-                reason=(
-                    f"Term-overlap coverage ({coverage:.2f}) is below the "
-                    f"minimum threshold ({self.min_term_coverage}). "
-                    "The question terms are not well matched by the manual."
-                ),
-                next_step="This topic may not be covered. Ask a supervisor.",
-            )
+            if self._is_real_language_query(question):
+                return GateDecision(
+                    decision="ANSWER",
+                    reason=(
+                        f"Term-overlap coverage ({coverage:.2f}) is below "
+                        f"minimum ({self.min_term_coverage}), but query has "
+                        f"real language structure. Soft fallback triggered."
+                    ),
+                    no_coverage=True,
+                )
+            else:
+                return GateDecision(
+                    decision="REFUSE",
+                    reason=(
+                        f"Term-overlap coverage ({coverage:.2f}) is below "
+                        f"minimum ({self.min_term_coverage}) and query lacks "
+                        f"real language structure."
+                    ),
+                    no_coverage=False,
+                )
 
         # ── Signal 3 & 4: Cross-reference checks ────────────────────────
         conflicts: list[str] = []
