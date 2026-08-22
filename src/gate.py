@@ -171,14 +171,15 @@ class Gate:
 
         # ── Signal 2: Term-overlap coverage ──────────────────────────────
         q_tokens = {
-            t for t in re.findall(r"[a-z0-9]+", question.lower()) if t not in STOPWORDS
+            t for t in re.findall(r"[a-z0-9]+", question.lower())
+            if t not in STOPWORDS and t not in self._high_freq
         }
         if q_tokens:
             clause_tokens: set[str] = set()
             for r in top_results:
                 clause_tokens.update(
                     t for t in re.findall(r"[a-z0-9]+", r.clause_text.lower())
-                    if t not in STOPWORDS
+                    if t not in STOPWORDS and t not in self._high_freq
                 )
             coverage = len(q_tokens & clause_tokens) / len(q_tokens)
         else:
