@@ -178,8 +178,21 @@ class Synthesizer:
             "Content-Type": "application/json",
         }
 
-        resp = requests.post(url, json=body, headers=headers, timeout=60)
-        resp.raise_for_status()
+        # Call the API with exponential backoff on 429 rate limit errors
+        import time
+        max_api_attempts = 5
+        backoff = 4.0
+        for attempt in range(max_api_attempts):
+            resp = requests.post(url, json=body, headers=headers, timeout=60)
+            if resp.status_code == 429:
+                time.sleep(backoff)
+                backoff *= 2.0
+                continue
+            resp.raise_for_status()
+            break
+        else:
+            resp.raise_for_status()
+
         raw = resp.json()
 
         return self._parse_response(raw)
