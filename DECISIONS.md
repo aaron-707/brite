@@ -179,9 +179,7 @@ The pipeline was stress-tested across six categories after the initial
   behaviour — the retriever cannot split a query into sub-queries.
   Known limitation: a production system would detect multi-part
   queries and run retrieval separately for each part.
-- U04 ("the department said no"): Initially refused. Fixed by adding
-  determination/refusal vocabulary to expansion table. Now retrieves
-  review and appeal rights correctly.
+- U04 ("the department said no"): Correctly refused by the gate directly after DF filtering was applied to the term-overlap coverage check and auxiliary do-verbs were added to the stopwords. No LLM call is made.
 - U05 (min/max award): Correctly stated the $25 minimum (§7.1.2) and
   honestly said no maximum is stated in the manual.
 
