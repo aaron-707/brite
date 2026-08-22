@@ -57,6 +57,8 @@ STRUCTURAL_CONNECTIVES = [
     "as specified in",
     "in accordance with",
     "referred to in",
+    "where",
+    "except where",
 ]
 
 
@@ -66,6 +68,18 @@ def _is_structural_reference(preceding_text: str) -> bool:
     term-overlap cannot assess it."""
     t = preceding_text.strip().lower()
     return any(t.endswith(phrase) for phrase in STRUCTURAL_CONNECTIVES)
+
+
+def _dedup_conflicts(conflicts: list[str]) -> list[str]:
+    seen_clauses = set()
+    deduped = []
+    for entry in conflicts:
+        clause_ids = re.findall(r"§?(\d+\.\d+(?:\.\d+)?)", entry)
+        key = frozenset(clause_ids)
+        if key not in seen_clauses:
+            seen_clauses.add(key)
+            deduped.append(entry)
+    return deduped
 
 
 
@@ -249,7 +263,17 @@ class Gate:
 
         # Signal 4: Numeric contradiction detection
         if self.numeric_contradiction:
-            conflicts.extend(self._check_numeric_contradictions(top_results, all_clauses))
+            # Build list of clauses (top retrieved clauses only)
+            check_clauses = []
+            seen_cids = set()
+            for r in top_results:
+                if r.clause_id not in seen_cids:
+                    seen_cids.add(r.clause_id)
+                    parent = ".".join(r.clause_id.split(".")[:2])
+                    text = f"§{parent} {r.clause_text}"
+                    check_clauses.append({"id": r.clause_id, "text": text})
+            
+            conflicts.extend(self._find_numeric_contradictions(check_clauses))
 
         if conflicts:
             return GateDecision(
@@ -264,80 +288,43 @@ class Gate:
             reason="Sufficient evidence found to answer the question.",
         )
 
-    def _check_numeric_contradictions(
-        self,
-        results: list[RetrievalResult],
-        all_clauses: dict[str, Clause],
-    ) -> list[str]:
-        """Detect numeric contradictions across clauses referencing the same target.
+    def _find_numeric_contradictions(self, clauses: list[dict]) -> list[str]:
+        conflicts = []
+        anchor_unit_map = {}
 
-        Looks for cases where two clauses cite the same §X.Y but state different
-        numeric values (e.g. "10 calendar days" vs "30 calendar days").
-        """
-        conflicts: list[str] = []
+        for clause in clauses:
+            text = clause["text"]
+            clause_id = clause["id"]
+            anchors = re.findall(r"§(\d+\.\d+)", text)
+            num_unit_pairs = re.findall(
+                r"(\d+(?:\.\d+)?)\s*(calendar days|days|per cent|percent|%|weeks|months|hours)",
+                text, re.IGNORECASE
+            )
+            for anchor in anchors:
+                for value, unit in num_unit_pairs:
+                    unit_norm = unit.lower().replace("calendar ", "")
+                    key = (anchor, unit_norm)
+                    if key not in anchor_unit_map:
+                        anchor_unit_map[key] = []
+                    anchor_unit_map[key].append((clause_id, float(value)))
 
-        # Group: xref_target -> list of (source_clause_id, extracted_numbers)
-        xref_numbers: dict[str, list[tuple[str, list[tuple[str, str]]]]] = {}
+        for (anchor, unit), entries in anchor_unit_map.items():
+            distinct_values = {}
+            for clause_id, value in entries:
+                if value not in distinct_values:
+                    distinct_values[value] = clause_id
+            if len(distinct_values) > 1:
+                # Base-rule / exception pairs in the same section are NOT contradictions:
+                prefixes = { ".".join(cid.split(".")[:2]) for cid in distinct_values.values() }
+                if len(prefixes) <= 1:
+                    continue
+                parts = "; ".join(
+                    f"§{cid} states {int(v) if v == int(v) else v}"
+                    for v, cid in distinct_values.items()
+                )
+                conflicts.append(
+                    f"Numeric contradiction referencing §{anchor}: "
+                    f"{parts}. These values are inconsistent."
+                )
 
-        for r in results:
-            refs = _XREF_RE.findall(r.clause_text)
-            nums = _NUM_UNIT_RE.findall(r.clause_text)
-            for ref in refs:
-                if ref != r.clause_id and nums:
-                    key = ref
-                    if key not in xref_numbers:
-                        xref_numbers[key] = []
-                    xref_numbers[key].append((r.clause_id, nums))
-
-        # Also check the target clauses themselves
-        for xref_target, sources in list(xref_numbers.items()):
-            resolved = _resolve_xref(xref_target, all_clauses)
-            for target_clause in resolved:
-                target_nums = _NUM_UNIT_RE.findall(target_clause.text)
-                if target_nums:
-                    sources.append((target_clause.clause_id, target_nums))
-
-
-        # Check for disagreements
-        for xref_target, sources in xref_numbers.items():
-            if len(sources) < 2:
-                continue
-
-            # Normalize units and compare
-            seen_values: dict[str, list[str]] = {}  # "10 calendar days" -> [clause_ids]
-            for source_id, nums in sources:
-                for value, unit in nums:
-                    normalized = f"{value} {unit.lower().strip()}"
-                    if normalized not in seen_values:
-                        seen_values[normalized] = []
-                    seen_values[normalized].append(source_id)
-
-            # If multiple distinct values exist for similar units, flag it
-            unit_groups: dict[str, list[tuple[str, str]]] = {}  # base_unit -> [(value, clause_id)]
-            for val_unit, clause_ids in seen_values.items():
-                parts = val_unit.split(maxsplit=1)
-                if len(parts) == 2:
-                    base = parts[1].rstrip("s").replace("calendar ", "").strip()
-                    for cid in clause_ids:
-                        if base not in unit_groups:
-                            unit_groups[base] = []
-                        unit_groups[base].append((parts[0], cid))
-
-            for base_unit, entries in unit_groups.items():
-                distinct_values = set(v for v, _ in entries)
-                if len(distinct_values) > 1:
-                    matches = [(cid, v) for v, cid in entries]
-                    seen_ids = {}
-                    for clause_id, value in matches:
-                        if clause_id not in seen_ids:
-                            seen_ids[clause_id] = value
-                    matches = list(seen_ids.items())
-
-                    detail_parts = [f"§{cid} states {v}" for cid, v in matches]
-                    conflicts.append(
-                        f"Numeric contradiction referencing §{xref_target}: "
-                        + "; ".join(detail_parts)
-                        + f". These values are inconsistent."
-                    )
-
-        return conflicts
+        return _dedup_conflicts(conflicts)
