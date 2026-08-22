@@ -24,7 +24,7 @@ STOPWORDS: frozenset[str] = frozenset(
     "a an and are as at be but by for from has have he her his i if in into is"
     " it its me my no nor not of on or our own she so than that the their them"
     " then there these they this to up us was we were what when where which who"
-    " whom why will with you your".split()
+    " whom why will with you your do does did done doing".split()
 )
 
 
