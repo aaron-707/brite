@@ -27,14 +27,42 @@ This document captures the design decisions, component evolutions, and current s
 
 ### Current Status of Specificity-Weighting
 - By introducing the $>15\%$ Document Frequency filter, the system successfully filters out generic administrative words. This resolves the specificity issue, forcing the check to rely on higher-value topical words (e.g., matching on "sanction" instead of "person", or "circumstances" instead of "within"). An adversarial test between unrelated clauses (e.g., §3.1.1 vs §12.2.1) correctly yields `NO` overlap.
-- **Known Limitation**: While this cleanly separates the tested cases and unrelated clauses, very short cross-referencing sentences with sparse preceding context may still fail to yield sufficient specific terms, leading to potential false dead-reference flags. More complex syntax parsing remains unverified.
+- **Known Limitation**: While this cleanly separates the tested cases and unrelated clauses, very short cross-referencing sentences with sparse preceding context may still fail to yield sufficient specific terms, leading to potential false dead-reference flags. More complex syntax parsing remains unverified. The §7.1.3 → §7.3 false positive in live testing is a confirmed instance of this limitation. See "Confirmed False Positive" below.
+
+#### Confirmed False Positive — §7.1.3 → §7.3
+Live testing revealed that the gate incorrectly flags §7.1.3's cross-reference to §7.3 as a dead reference. §7.1.3 reads: "subject to the adjustments in §7.3" — a structural connective phrase whose topical signal lives entirely in the target clause, not in the preceding tokens. Because "adjustments" is a high-DF generic term and no specific topical word precedes the citation, the gate yields zero overlap and fires incorrectly. The fix: add a whitelist of structural connective phrases ("subject to the adjustments in", "except as provided in", "as described in", "as set out in") that bypass the term-overlap check entirely. These phrases are explicitly forward-pointing — the reference is definitionally structural, not topical, and no term-overlap test can distinguish them. This is a targeted patch to the gate, not a redesign.
 
 ## 4. Synthesizer (Commit `cf6c919`)
 - **Implementation**: Google Gemini REST API accessed via raw HTTP requests (using python `requests`). 
 - **Model Choice**: `gemini-3.5-flash` (newer generation Flash).
 - **Rationale**: Direct REST calls eliminate bulkier SDK dependencies (`google-generativeai`). `gemini-3.5-flash` was selected over newer models (like `gemini-3.6` or `gemini-3.7` previews) because standard control over generation configuration (`temperature=0.1`, `top_p`, `top_k`) is preserved, which is essential for deterministic, repeatable, and low-temperature grounded outputs. The API key is loaded strictly from a `.env` file via `python-dotenv`.
 
+### Refusal and Conflict Output Design
+When the gate returns FLAG_CONFLICT, the synthesizer prompt instructs the model to:
+(a) state which clauses conflict and what the conflicting values are;
+(b) not silently resolve the conflict by picking one side;
+(c) tell the caseworker explicitly to escalate — either to a supervisor or to the district office — before acting on either figure.
+
+For the numeric contradiction (§4.3.2 vs §9.1.4): the system flags rather than resolves because the operative obligation clause (§4.3.2, 10 days) and the downstream consequence clause (§9.1.4, 30 days) serve different purposes and the discrepancy is genuine. Resolving it silently would constitute the system making a legal determination it is not qualified to make. The caseworker is directed to a supervisor.
+
+For dead references (§7.1.3 → §5.4): the system flags rather than refusing cleanly because the retriever did return relevant context (§7.1.3 itself, §1.4.6) — the problem is that the manual's own pointer is broken. The answer states what IS known and names the broken pointer explicitly, rather than returning a bare "I don't know."
+
+Trade-off acknowledged: a FLAG_CONFLICT answer that also explains the partial context is more useful to a caseworker than a clean refusal, but it requires the synthesizer to correctly distinguish "here is what I know / here is what is broken" from "here is a best guess." Temperature 0.1 and an explicit prompt instruction to never infer beyond the retrieved text are the controls for this.
+
 ## 5. Current Outstanding Tasks (What the system does NOT do yet)
-- **Harness Verification**: The evaluation harness has not yet been executed against the required 10-question evaluation set.
-- **Live Verification**: End-to-end integration and pipeline testing against the live Gemini API is not yet verified.
-- **Documentation**: The root `README.md` contains basic setup instructions but needs update with actual, verified CLI usage instructions once the full pipeline is tested.
+- **Gate whitelist patch**: The structural connective phrase whitelist for the gate has been identified but not yet committed. The §7.1.3 → §7.3 false positive will persist until this is applied.
+- **Conflict list de-duplication**: The numeric contradiction detector emits §4.3.2 twice in the conflict list. A de-duplication step before the conflict list is passed to the synthesizer is needed.
+- **Harness Verification**: The evaluation harness has not yet been executed against the required 10-question evaluation set. Results, including honest pass/fail outcomes, will be added here once run.
+- **Documentation**: README.md env setup uses Windows `copy` syntax. Needs a cross-platform note (Linux/macOS: `cp .env.example .env`).
+
+## 6. Refusal Threshold — Where the Line Is and Why
+
+The system has two refusal/flag paths:
+
+**FLAG_CONFLICT** is used when the retriever returns clauses that the gate detects as internally inconsistent (numeric contradiction) or structurally broken (dead reference). The threshold for the numeric check is: any two clauses referencing the same §-anchor that contain different numeric values for the same quantity. The threshold for the dead reference check is: zero term-overlap (after DF filtering) between the preceding tokens of the citing sentence and the target clause text.
+
+**ANSWER with low confidence / clean refusal** is used when the retriever returns no clauses with sufficient relevance, or when the top-retrieved clauses do not contain a term that directly addresses the query. The current relevance cutoff is 0.015.
+
+The explicit trade-off: the threshold is set to prefer false negatives (over-refusal) over false positives (confident wrong answers). A caseworker who is told "the manual does not settle this" and escalates has caused no harm. A caseworker who is told a confident wrong answer and acts on it may cause a real person to be incorrectly denied or granted assistance. The floor for this problem — "the system can decline to answer, and does so on at least one case where declining is correct" — is a hard design constraint, not a nice-to-have.
+
+What I would fix first if given more time: the refusal path currently does not tell the caseworker *which district office contact* or *which supervisor role* to escalate to. The manual references "a supervisor" generically (§2.3.2, §5.5.2, §9.6.2, §10.2.3). A production system would resolve this to an actual contact.
