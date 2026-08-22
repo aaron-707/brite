@@ -46,6 +46,29 @@ def _resolve_xref(ref: str, all_clauses: dict[str, Clause]) -> list[Clause]:
     return matches
 
 
+STRUCTURAL_CONNECTIVES = [
+    "subject to the adjustments in",
+    "subject to adjustments in",
+    "except as provided in",
+    "as described in",
+    "as set out in",
+    "as defined in",
+    "under",
+    "as specified in",
+    "in accordance with",
+    "referred to in",
+]
+
+
+def _is_structural_reference(preceding_text: str) -> bool:
+    """Return True if the citation is preceded by a structural connective
+    phrase, meaning the reference is definitionally forward-pointing and
+    term-overlap cannot assess it."""
+    t = preceding_text.strip().lower()
+    return any(t.endswith(phrase) for phrase in STRUCTURAL_CONNECTIVES)
+
+
+
 @dataclass
 class GateDecision:
     """Result of the gate evaluation."""
@@ -184,6 +207,8 @@ class Gate:
 
             # Term overlap check: look at preceding ~6 words, excluding single chars & high-freq words
             window = source_text[max(0, match_start - 150):match_start]
+            if _is_structural_reference(window):
+                continue
             tokens = [t for t in re.findall(r"[a-z0-9]+", window.lower()) 
                       if t not in STOPWORDS and len(t) > 1]
             filtered_tokens = [t for t in tokens if t not in self._high_freq]
@@ -301,7 +326,14 @@ class Gate:
             for base_unit, entries in unit_groups.items():
                 distinct_values = set(v for v, _ in entries)
                 if len(distinct_values) > 1:
-                    detail_parts = [f"§{cid} states {v}" for v, cid in entries]
+                    matches = [(cid, v) for v, cid in entries]
+                    seen_ids = {}
+                    for clause_id, value in matches:
+                        if clause_id not in seen_ids:
+                            seen_ids[clause_id] = value
+                    matches = list(seen_ids.items())
+
+                    detail_parts = [f"§{cid} states {v}" for cid, v in matches]
                     conflicts.append(
                         f"Numeric contradiction referencing §{xref_target}: "
                         + "; ".join(detail_parts)
