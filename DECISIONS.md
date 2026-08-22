@@ -122,70 +122,82 @@ Final results after all fixes: 10/10 PASS.
     this is a corpus integrity issue, not a retriever issue, and should
     be flagged to whoever maintains the manual.
 
-## 9. Stress Testing — Findings and Fixes (post-submission hardening)
+## 9. Stress Testing — Findings and Architectural Decisions
 
-The pipeline was stress-tested across six categories after the initial
-10-question eval passed. Findings and fixes are recorded honestly here.
+The pipeline was stress-tested across three categories after the
+initial 10-question eval passed. All findings and the rationale
+for each fix are recorded here.
 
 ### Edge cases (E01–E08)
+
 - E01–E03 (empty, single char, gibberish): Correctly refused via
-  term-overlap threshold. No hallucination.
-- E04 (prompt injection): Injection ignored entirely. Pipeline answered
-  the policy-relevant portion of the query and grounded strictly on
-  §2.3.1. The low-temperature synthesizer prompt and strict grounding
-  instruction are the controls here — not explicit injection detection.
-- E05 (keyword dump): Retrieved a reasonable subset of clauses and
-  answered what it could. Explicitly stated what was not covered.
-  Known limitation: a very broad query will retrieve high-scoring
-  clauses on multiple topics and the synthesizer answer will be long
-  and unfocused. Acceptable for a caseworker tool; not ideal.
-- E06 (colloquial "cut off"): Initially refused due to zero term
-  overlap. Fixed by adding bigram expansion ("cut off" →
-  terminated/reinstatement). Now correctly retrieves §10.3.1–2.
-- E07 (false premise): Correctly rejected the invented rule and cited
-  the actual resource limit (§2.4.1). No hallucination.
-- E08 (raw clause reference): Initially triggered a false FLAG_CONFLICT.
-  Fixed by adding a fast-path raw clause lookup that bypasses retrieval
-  and gating entirely.
+  hard REFUSE path. The gate's _is_real_language_query() check
+  returns False — fewer than 2 non-stopword tokens of length >= 3.
+- E04 (prompt injection): Injection ignored entirely. The low-
+  temperature synthesizer prompt and strict grounding instruction
+  are the controls — no explicit injection detection is implemented
+  or needed.
+- E05 (keyword dump): Retrieved a reasonable clause subset and
+  answered what it could. Known limitation: very broad queries
+  produce long unfocused answers. Acceptable for a caseworker tool.
+- E06 (colloquial "cut off"): Fixed by adding "cut off" as a bigram
+  entry in the corpus-independent expansion table. Maps directly to
+  manual terminology (terminated/reinstatement) derived from Part 1
+  definitions.
+- E07 (false premise): Correctly rejected the invented rule and
+  cited the actual resource limit §2.4.1. No hallucination.
+- E08 (raw clause reference): Fixed by adding a fast-path raw clause
+  lookup that bypasses retrieval and gating entirely when the query
+  matches the pattern §X.Y.Z or X.Y.Z.
 
 ### Vocabulary mismatch (V01–V08)
-- V01 ("partner"): Initially refused. Fixed by adding household
-  composition synonyms to expansion table. Now correctly retrieves
-  §1.4.3.
-- V02 ("just moved"): Partial answer — correctly retrieved general
-  eligibility but did not surface specific residency duration clause.
-  Acceptable: the manual does not state a residency duration requirement,
-  so the partial answer is honest.
-- V03 ("lose my job"): Correctly flagged the 10 vs 30 day reporting
-  conflict. The conflict is surfaced on any change-of-circumstances
-  query, which is correct behaviour.
-- V04 (visa): Correctly refused. Visa eligibility is genuinely not
-  covered by the manual.
-- V05 (savings): Correctly retrieved §2.4.1 resource limit and §2.4.2
-  disregards. Known issue: dollar amounts render with garbled characters
-  in some terminal encodings. Output JSON is correct; display only.
-- V06–V08 (appeals, overpayment, income): All correctly retrieved
-  relevant Part 9, 12, and 6 clauses. No issues.
+
+- V01 ("partner"): Initially refused. Fixed via corpus-independent
+  expansion table entry mapping "partner" to "couple" and "household
+  member" — terms defined in §1.4.3.
+- V02 ("just moved"): Partial answer. The manual does not state a
+  residency duration requirement, so the partial answer is honest.
+- V03 ("lose my job"): Correctly flagged the 10 vs 30 day conflict.
+- V04 (student visa): Correctly refused — visa eligibility is
+  genuinely not in the manual.
+- V05–V08: All correctly retrieved relevant clauses from Parts 6,
+  9, and 12.
 
 ### Ugly phrasing (U01–U05)
-- U01 ("who can not get help"): Correctly retrieved exclusion clauses.
-  Negation queries handled well by lexical retrieval — "not eligible"
-  and "excluded" are in the manual and surface correctly.
-- U02 ("how much money do you get"): Correctly returned a partial
-  answer without inventing a figure.
-- U03 (multi-part run-on): Retrieved the highest-scoring topic
-  (age 16 eligibility) and answered it. Stated sanctions and
-  overpayments were not covered by retrieved clauses. Acceptable
-  behaviour — the retriever cannot split a query into sub-queries.
-  Known limitation: a production system would detect multi-part
-  queries and run retrieval separately for each part.
-- U04 ("the department said no"): Fixed by mapping refusal vocabulary directly to low-DF topical terms (review, appeal, panel) that survive the >15% DF filter. Intermediate attempt using high-DF synonyms (determined, decided) failed because those terms are themselves filtered out before the coverage check runs. The interaction between query expansion and DF filtering must be considered together — expanded terms that are themselves high-DF provide no retrieval benefit.
-- U05 (min/max award): Correctly stated the $25 minimum (§7.1.2) and
-  honestly said no maximum is stated in the manual.
 
-### Overall stress test verdict
-The pipeline handles all tested failure categories without hallucinating.
-The main failure mode across all categories is vocabulary mismatch
-leading to zero retrieval — addressed by the expansion table. The
-expansion table is the single highest-maintenance component and the
-first thing to automate in a v2.
+- U01 (negation): Correctly retrieved exclusion clauses.
+- U02 (vague): Correctly returned partial answer without inventing
+  a figure.
+- U03 (multi-part run-on): Retrieved highest-scoring topic and
+  answered it. Known limitation: a production system would split
+  multi-part queries and run retrieval separately for each part.
+- U04 ("the department said no"): Required three fix attempts.
+  First attempt added reactive hardcoded synonyms for "no", "said",
+  "refused" — rejected as unmaintainable. Second attempt mapped to
+  low-DF topical terms — also rejected as hardcoding. Final fix:
+  soft fallback in the gate. When coverage < 0.25 but the query
+  passes _is_real_language_query(), the gate returns no_coverage:
+  True and the synthesizer emits a corpus-independent escalation
+  instruction. This contains zero hardcoded domain terms and holds
+  up under a corpus swap.
+- U05 (min/max): Correctly stated the $25 minimum and honestly said
+  no maximum is stated.
+
+### Key architectural decision — expansion table scope
+
+Two approaches to vocabulary mismatch were considered and rejected
+before the final design:
+
+(a) Reactive synonym table — add entries whenever a query fails.
+    Rejected: unmaintainable, grows without bound, breaks on corpus
+    change.
+(b) Low-DF topical term mapping — map colloquial terms to specific
+    manual terms that survive the DF filter. Rejected: still
+    hardcoding, just more carefully chosen hardcoding.
+
+Final design: the expansion table contains only entries grounded in
+the manual's own Part 1 definitions (car → motor vehicle, partner →
+couple/household member). Everything else is handled by the soft
+fallback — real-language queries with zero coverage get an
+escalation instruction rather than a hard refuse. This is
+corpus-independent and requires no maintenance as the manual changes.
