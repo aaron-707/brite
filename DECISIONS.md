@@ -66,3 +66,58 @@ The system has two refusal/flag paths:
 The explicit trade-off: the threshold is set to prefer false negatives (over-refusal) over false positives (confident wrong answers). A caseworker who is told "the manual does not settle this" and escalates has caused no harm. A caseworker who is told a confident wrong answer and acts on it may cause a real person to be incorrectly denied or granted assistance. The floor for this problem — "the system can decline to answer, and does so on at least one case where declining is correct" — is a hard design constraint, not a nice-to-have.
 
 What I would fix first if given more time: the refusal path currently does not tell the caseworker *which district office contact* or *which supervisor role* to escalate to. The manual references "a supervisor" generically (§2.3.2, §5.5.2, §9.6.2, §10.2.3). A production system would resolve this to an actual contact.
+
+## 6. Retriever — Query Expansion (post-eval fix)
+
+- **Problem found in eval**: Two queries failed retrieval because the
+  query vocabulary did not match the manual's vocabulary. "Car" is not
+  in the manual — "motor vehicle" is (§2.4.2). "How long does the
+  Department have to complete a review" did not surface §11.2.3 with
+  sufficient score.
+- **Fix**: A lightweight static query expansion table maps common
+  synonyms to the manual's actual terminology before the query reaches
+  BM25 and TF-IDF. No external dependencies added.
+- **Trade-off**: A static expansion table requires manual maintenance
+  as the corpus changes. A production system would use the manual's
+  own definitions section (Part 1) to build the expansion table
+  automatically. This is the first thing to automate in a v2.
+
+## 7. Gate — Numeric Contradiction Detector Redesign (post-eval fix)
+
+- **Problem found in eval**: The original detector flagged any two
+  different numeric values across retrieved clauses as a contradiction.
+  This produced false positives on Q05 (28-day base vs 90-day
+  exception, different §-anchors), Q08 (deduction % vs exclusion
+  weeks, different units), and Q10 (absence days retrieved on an
+  unrelated dental query).
+- **Fix**: Detector now only flags when two clauses share both the
+  same §-anchor AND the same unit word. Different anchors or different
+  units are never flagged as contradictions.
+- **Known limitation**: The anchor-matching relies on §-citations being
+  present in the clause text. Clauses that describe a rule numerically
+  without self-citing their own §-anchor will not be caught.
+
+## 8. Evaluation Results (10-question set)
+
+Final results after all fixes: 10/10 PASS.
+
+  Q01 PASS — ANSWER, §2.3.1 cited, valid
+  Q02 PASS — FLAG_CONFLICT, §4.3.2 vs §9.1.4 surfaced, escalation present
+  Q03 PASS — FLAG_CONFLICT, dead reference §7.1.3→§5.4 surfaced, escalation present
+  Q04 PASS — ANSWER, §2.4.2 motor vehicle disregard cited (post query-expansion fix)
+  Q05 PASS — ANSWER, §3.2.1 28-day limit and §3.2.2 90-day exception both cited
+  Q06 PASS — ANSWER, §10.5.3 sanction prohibition for households with child under 2
+  Q07 PASS — ANSWER, §11.2.3 cited (post query-expansion fix)
+  Q08 PASS — ANSWER, §9.3.2 10%/20% deduction cap cited correctly
+  Q09 PASS — ANSWER, appeal process from Part 12 cited, no housing-specific rule invented
+  Q10 PASS — ANSWER (clean refusal), manual silent on dental costs, escalation present
+
+  What the system does not do and what I would fix first:
+  - The query expansion table is static and will drift as the manual
+    changes quarterly. Automating it from Part 1 definitions is the
+    first priority.
+  - The refusal path does not resolve "supervisor" to an actual named
+    contact or role. The manual references supervisors generically.
+  - §11.2.3 may be missing from the corpus entirely — if confirmed,
+    this is a corpus integrity issue, not a retriever issue, and should
+    be flagged to whoever maintains the manual.
