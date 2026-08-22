@@ -16,8 +16,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity as cos_sim
 
 from .parser import Clause
 from .retriever import RetrievalResult, STOPWORDS
@@ -158,16 +156,15 @@ class Gate:
         # highest-ranked results to avoid flagging structural cross-refs
         # from tangentially retrieved clauses.
         xref_check_depth = min(3, len(top_results))
-        xref_contexts: list[tuple[str, str, str]] = []  # (source_clause_id, xref_target, source_text)
+        xref_contexts: list[tuple[str, str, int, str]] = []  # (source_clause_id, xref_target, match_start, source_text)
         for r in top_results[:xref_check_depth]:
-            refs = _XREF_RE.findall(r.clause_text)
-            for ref in refs:
+            for m in _XREF_RE.finditer(r.clause_text):
+                ref = m.group(1)
                 if ref != r.clause_id:
-                    xref_contexts.append((r.clause_id, ref, r.clause_text))
+                    xref_contexts.append((r.clause_id, ref, m.start(), r.clause_text))
 
-
-        # Signal 3: Cross-reference relevance
-        for source_id, xref_target, source_text in xref_contexts:
+        # Signal 3: Cross-reference relevance (Term overlap)
+        for source_id, xref_target, match_start, source_text in xref_contexts:
             resolved = _resolve_xref(xref_target, all_clauses)
             if not resolved:
                 conflicts.append(
@@ -176,30 +173,36 @@ class Gate:
                 )
                 continue
 
-            # Check topical relevance: compute similarity between the
-            # source text and each resolved target clause.  Use the best
-            # match — if *none* are relevant the xref is dead.
-            best_sim = 0.0
-            best_clause = resolved[0]
-            for target_clause in resolved:
-                try:
-                    vec = TfidfVectorizer(lowercase=True, stop_words="english")
-                    matrix = vec.fit_transform([source_text, target_clause.text])
-                    sim = cos_sim(matrix[0:1], matrix[1:2])[0, 0]
-                except ValueError:
-                    sim = 0.0
-                if sim > best_sim:
-                    best_sim = sim
-                    best_clause = target_clause
+            # Term overlap check: look at preceding ~6 words, excluding single chars
+            window = source_text[max(0, match_start - 150):match_start]
+            tokens = [t for t in re.findall(r"[a-z0-9]+", window.lower()) 
+                      if t not in STOPWORDS and len(t) > 1]
+            key_terms = tokens[-6:] if len(tokens) >= 6 else tokens
+            
+            has_overlap = False
+            if not key_terms:
+                has_overlap = True
+            else:
+                target_text = " ".join(c.text.lower() for c in resolved)
+                target_tokens = set(re.findall(r"[a-z0-9]+", target_text))
+                for term in key_terms:
+                    if term in target_tokens:
+                        has_overlap = True
+                        break
+                    # prefix match for stemming (e.g. 'determined' vs 'determines')
+                    if len(term) >= 5:
+                        prefix = term[:5]
+                        if any(t.startswith(prefix) for t in target_tokens if len(t) >= 5):
+                            has_overlap = True
+                            break
 
-            if best_sim < self.xref_relevance_threshold:
-                # Build a human-readable explanation
+            if not has_overlap:
+                best_clause = resolved[0]
                 conflicts.append(
                     f"§{source_id} cross-references §{xref_target}, but the "
-                    f"referenced clause appears topically unrelated "
-                    f"(similarity: {best_sim:.2f}). §{best_clause.clause_id} discusses "
-                    f"'{best_clause.text[:80].strip()}…' — this may be a "
-                    f"dead or incorrect reference."
+                    f"referenced clause appears topically unrelated. "
+                    f"§{best_clause.clause_id} discusses '{best_clause.text[:80].strip()}…' "
+                    f"— this may be a dead or incorrect reference."
                 )
 
 
