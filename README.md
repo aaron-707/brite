@@ -1,46 +1,70 @@
 # Brite Spark 2026 — The Grounded Answer
 
-Clause-grounded RAG system for the Calder County Household Support Program
-policy manual.
+A clause-grounded retrieval-augmented generation (RAG) system for the Calder County Household Support Program policy manual.
 
-## Architecture
+## Out of Scope
+This system is designed strictly for single-turn clause grounding against the Calder County Household Support Program policy manual; it does *not* support multi-turn chat sessions, indexing or parsing other document manuals, or model fine-tuning.
 
+---
+
+## Prerequisites
+
+- **Python Version**: Python 3.10 or higher.
+- **Dependencies**: The system runs entirely on standard library modules and lightweight packages. It does not require any heavy deep-learning frameworks (like `torch` or `sentence-transformers`) or proprietary SDKs (like `google-generativeai`).
+  - `scikit-learn` (for TF-IDF lexical retrieval)
+  - `numpy` (for matrix operations)
+  - `pyyaml` (for configuration parsing)
+  - `requests` (for raw HTTP REST queries to the Gemini API)
+  - `python-dotenv` (for loading API keys from `.env`)
+
+---
+
+## Getting Started
+
+### 1. Clone the Repository and Navigate to the Directory
+
+```bash
+git clone https://github.com/aaron-707/brite.git
+cd brite
 ```
-question → Retriever → Gate → Synthesizer → Citation Validator → answer
-```
 
-Four decoupled components:
-
-1. **Retriever** — Hybrid BM25 Okapi + TF-IDF (scikit-learn) with weighted RRF
-   fusion. Fully offline, zero model downloads.
-2. **Gate** — Pre-LLM decision (ANSWER / REFUSE / FLAG_CONFLICT). Checks
-   retrieval confidence, term overlap, cross-reference integrity, and numeric
-   contradictions. All thresholds in `config/gate_thresholds.yaml`.
-3. **Synthesizer** — Calls Gemini REST API directly via `requests` (no SDK).
-   Structured JSON output with `responseSchema`. API key from `.env`.
-4. **Citation Validator** — Post-checks every clause citation against the
-   retrieved set. Rejects hallucinated citations and unsupported claims.
-
-## Setup
+### 2. Install Dependencies
 
 ```bash
 pip install -r requirements.txt
-cp .env.example .env
-# Edit .env with your GEMINI_API_KEY
 ```
+
+### 3. Configure the Environment
+
+Create your environment configuration file from the template:
+
+```bash
+copy .env.example .env
+```
+
+Open `.env` in a text editor and set your personal Gemini API key:
+
+```text
+GEMINI_API_KEY=your_actual_api_key_here
+GEMINI_MODEL=gemini-3.5-flash
+```
+
+---
 
 ## Usage
 
+### Run a Single Query
+
+To query the pipeline via the CLI on a single question, run:
+
 ```bash
-python -m src.pipeline "What is the reporting window for changes?"
+python -m src.pipeline "Can a person aged 16 apply for assistance?"
 ```
 
-## Configuration
+### Run the Evaluation Harness
 
-All thresholds and weights are in `config/gate_thresholds.yaml` — never
-hardcoded in source code.
+Once the evaluation files and unit tests are created, you can run the evaluation suite against the required 10-question evaluation set using:
 
-## Corpus
-
-The policy manual lives at `1/Data pack/policy-manual.md`. It is read-only and
-must never be generated or replaced.
+```bash
+python -m tests.eval.run_eval
+```
