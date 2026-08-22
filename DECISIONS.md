@@ -179,7 +179,7 @@ The pipeline was stress-tested across six categories after the initial
   behaviour — the retriever cannot split a query into sub-queries.
   Known limitation: a production system would detect multi-part
   queries and run retrieval separately for each part.
-- U04 ("the department said no"): Correctly refused by the gate directly after DF filtering was applied to the term-overlap coverage check and auxiliary do-verbs were added to the stopwords. No LLM call is made.
+- U04 ("the department said no"): Fixed by mapping refusal vocabulary directly to low-DF topical terms (review, appeal, panel) that survive the >15% DF filter. Intermediate attempt using high-DF synonyms (determined, decided) failed because those terms are themselves filtered out before the coverage check runs. The interaction between query expansion and DF filtering must be considered together — expanded terms that are themselves high-DF provide no retrieval benefit.
 - U05 (min/max award): Correctly stated the $25 minimum (§7.1.2) and
   honestly said no maximum is stated in the manual.
 
