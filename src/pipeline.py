@@ -486,7 +486,7 @@ class Pipeline:
                 )
             last_output = synth_output
 
-            validation = self.validator.validate(synth_output, results)
+            validation = self.validator.validate(synth_output, results, question)
             last_validation = validation
 
             if validation.valid:

@@ -74,6 +74,7 @@ class CitationValidator:
         self,
         synth_output: SynthesizerOutput,
         retrieved: list[RetrievalResult],
+        question: str | None = None,
     ) -> ValidationResult:
         """Validate the synthesizer's output against retrieved clauses.
 
@@ -109,6 +110,9 @@ class CitationValidator:
                     body = parts[0]
         sentences = self._split_sentences(body)
 
+        # Extract question tokens to ignore in verification overlap
+        question_tokens = self._tokenize(question) if question else set()
+
         for sentence in sentences:
             stripped = sentence.strip()
             if not stripped:
@@ -139,16 +143,22 @@ class CitationValidator:
             if not sent_tokens:
                 continue
 
-            supported = False
-            for cid in valid_cited:
-                if cid in clause_texts:
-                    clause_tokens = self._tokenize(clause_texts[cid])
-                    if not clause_tokens:
-                        continue
-                    overlap = len(sent_tokens & clause_tokens) / len(sent_tokens)
-                    if overlap >= self.min_support_overlap:
-                        supported = True
-                        break
+            # Exclude tokens derived from the query itself
+            filtered_sent_tokens = sent_tokens - question_tokens
+            if not filtered_sent_tokens:
+                # Sentence contains only query terms or stopwords; it is verified by definition
+                supported = True
+            else:
+                supported = False
+                for cid in valid_cited:
+                    if cid in clause_texts:
+                        clause_tokens = self._tokenize(clause_texts[cid])
+                        if not clause_tokens:
+                            continue
+                        overlap = len(filtered_sent_tokens & clause_tokens) / len(filtered_sent_tokens)
+                        if overlap >= self.min_support_overlap:
+                            supported = True
+                            break
 
             if not supported:
                 unverified.append(
