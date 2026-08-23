@@ -126,7 +126,7 @@ class Gate:
 
         gate_cfg = cfg.get("gate", _DEFAULT_CONFIG["gate"])
         self.min_retrieval_score: float = gate_cfg.get("min_retrieval_score", 0.015)
-        self.min_term_coverage: float = gate_cfg.get("min_term_coverage", 0.25)
+        self.min_term_coverage: float = gate_cfg.get("min_term_coverage", MIN_TERM_COVERAGE)
         self.xref_relevance_threshold: float = gate_cfg.get("xref_relevance_threshold", 0.3)
         self.numeric_contradiction: bool = gate_cfg.get("numeric_contradiction", True)
         self.top_k_for_gate: int = gate_cfg.get("top_k_for_gate", 5)
