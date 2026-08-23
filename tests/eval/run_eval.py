@@ -109,6 +109,18 @@ QUESTIONS = [
         "determination_date": date(2026, 2, 15),
         "notes": "Historical regression case for Q02: pre-March 2026 contradiction between §4.3.2 (10 days) and §9.1.4 (30 days)."
     },
+    {
+        "id": "Q17",
+        "query": "For a claim I'm deciding in April 2026, how many days does a recipient have to report a change of circumstances?",
+        "expected_decision": "FLAG_CONFLICT",
+        "notes": "Tests temporal ambiguity via natural-language date extraction (April 2026 determination, unknown event date)."
+    },
+    {
+        "id": "Q18",
+        "query": "For a claim in February 2026, how many days does a recipient have to report a change of circumstances?",
+        "expected_decision": "FLAG_CONFLICT",
+        "notes": "Tests pre-March contradiction via natural-language date extraction (February 2026 determination)."
+    },
 ]
 
 
@@ -174,26 +186,28 @@ def run_evaluation() -> None:
                 if escalation_phrase not in result.answer:
                     passed = False
                     fail_reason = "Escalation instruction not present in FLAG_CONFLICT answer"
-                elif q["id"] == "Q16":
+                elif q["id"] in ("Q16", "Q18"):
+                    qid = q["id"]
                     if "4.3.2" not in result.answer or "9.1.4" not in result.answer:
                         passed = False
-                        fail_reason = "Clause numbers 4.3.2 and 9.1.4 not present in Q16 answer"
+                        fail_reason = f"Clause numbers 4.3.2 and 9.1.4 not present in {qid} answer"
                     elif ("10 calendar days" not in result.answer.lower() and "10 days" not in result.answer.lower()) or ("30 calendar days" not in result.answer.lower() and "30 calendar day" not in result.answer.lower()):
                         passed = False
-                        fail_reason = "Verbatim text of conflicting clauses not present in Q16 answer"
+                        fail_reason = f"Verbatim text of conflicting clauses not present in {qid} answer"
                     elif "operative" not in result.answer.lower() or ("consequence" not in result.answer.lower() and "provision" not in result.answer.lower() and "downstream" not in result.answer.lower()):
                         passed = False
-                        fail_reason = "Explanation of operative rule vs downstream consequence not present in Q16 answer"
-                elif q["id"] == "Q13":
+                        fail_reason = f"Explanation of operative rule vs downstream consequence not present in {qid} answer"
+                elif q["id"] in ("Q13", "Q17"):
+                    qid = q["id"]
                     if "4.3.2" not in result.answer:
                         passed = False
-                        fail_reason = "Clause number 4.3.2 not present in Q13 answer"
+                        fail_reason = f"Clause number 4.3.2 not present in {qid} answer"
                     elif "10" not in result.answer or "14" not in result.answer:
                         passed = False
-                        fail_reason = "Both 10 and 14 calendar days must be mentioned to address ambiguity in Q13"
+                        fail_reason = f"Both 10 and 14 calendar days must be mentioned to address ambiguity in {qid}"
                     elif "before 1 march" not in result.answer.lower() or "after 1 march" not in result.answer.lower():
                         passed = False
-                        fail_reason = "Answer must distinguish between changes occurring before vs on/after 1 March 2026 in Q13"
+                        fail_reason = f"Answer must distinguish between changes occurring before vs on/after 1 March 2026 in {qid}"
 
             # Check custom assertions for Q11-Q15
             if passed:

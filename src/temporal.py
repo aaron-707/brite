@@ -198,7 +198,12 @@ def resolve_clause(
 
         if rec.anchor == "event_date":
             # §5.2: keyed on when the change of circumstances occurred.
-            if event_date is None:
+            if determination_date < rec.effective_date:
+                # If determination_date is before effective_date, the amendment is
+                # not yet active, so event_date must be pre-effective as well.
+                # Thus, the amendment cannot apply and there is no ambiguity.
+                anchor_date = determination_date
+            elif event_date is None:
                 # Deliberate behavior: event_date is required to resolve this
                 # amendment but was not supplied.  Return both versions with
                 # ambiguous=True so the caller can decide — do not silently
@@ -211,7 +216,8 @@ def resolve_clause(
                 # text remains as the base for subsequent non-event_date amendments,
                 # but will be set to None in the final return below.
                 continue
-            anchor_date = event_date
+            else:
+                anchor_date = event_date
         else:
             # §5.1: keyed on determination_date
             anchor_date = determination_date

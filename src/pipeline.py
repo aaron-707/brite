@@ -251,8 +251,15 @@ class Pipeline:
         # (If the caller passed explicit dates, extraction results are discarded.)
 
         # Default event_date to determination_date if no overrides or extracted
-        # event dates were found, so that default-date queries reflect current reality.
-        if event_date is None and not det_overridden:
+        # event dates were found, AND the question contains no explicit date text,
+        # so that generic queries reflect current reality while date-containing queries
+        # remain properly constrained/ambiguous.
+        has_extracted_dates = (
+            _ISO_DATE_RE.search(question) is not None or
+            _NAMED_DATE_RE.search(question) is not None or
+            re.search(r"\btoday\b", question, re.IGNORECASE) is not None
+        )
+        if event_date is None and not det_overridden and not has_extracted_dates:
             event_date = determination_date
 
         # Fast path: raw clause reference lookup
