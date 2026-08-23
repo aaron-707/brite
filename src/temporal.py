@@ -35,30 +35,37 @@ class ClauseVersion:
     clause_id : str
         The clause identifier.
     text : str | None
-        The resolved clause text.  None only when exists=False (clause not yet
-        in force for the given determination_date).
+        The resolved clause text.  None in two cases:
+          • exists=False — clause not yet in force (e.g. §10.5.3A pre-March).
+          • ambiguous=True — event_date was not supplied for an event_date-
+            anchored amendment; both versions are in old_text / new_text
+            instead.  text is explicitly set to None so that any caller that
+            does ``cv.text.replace(...)`` gets AttributeError on None rather
+            than silently operating on whichever version happened to be stored.
     is_amended : bool
-        True if at least one amendment was applied.
+        True if at least one amendment was definitively applied (not ambiguous).
     amendment_paragraph : int | None
         Which amendment paragraph was applied (if any).
     apportionment : bool
-        §5.3 flag — the claim period spans the amendment's effective date and
-        the award must be apportioned under §7.4.3.  The resolver flags this
-        but does not attempt to resolve it.
+        §5.3 flag — the claim period spans the amendment's effective date;
+        apportioned under §7.4.3.  Flagged but not resolved here.
     ambiguous : bool
         True when the clause has an event_date-anchored amendment (§5.2) but
-        no event_date was supplied to resolve_clause.  The caller must obtain
-        the event_date and call again, or present both versions to the user.
-        When True, `text` holds the NEW (post-amendment) text and
-        `ambiguous_old_text` holds the OLD text, so the caller has both
-        without a second round-trip.
-    ambiguous_old_text : str | None
-        The pre-amendment text when ambiguous=True; None otherwise.
+        no event_date was supplied.  When True:
+          • text is None — do NOT use it.
+          • old_text holds the pre-amendment text.
+          • new_text holds the post-amendment text.
+        The caller must obtain event_date and call resolve_clause again, or
+        present both versions to the caseworker.
+    old_text : str | None
+        Pre-amendment clause text, populated only when ambiguous=True.
+    new_text : str | None
+        Post-amendment clause text, populated only when ambiguous=True.
     exists : bool
         False when the clause ID belongs to a provision inserted by an
         amendment that has not yet taken effect for the given
         determination_date (e.g. §10.5.3A before 1 March 2026).
-        When False, `text` is None.
+        When False, text is None.
     """
 
     clause_id: str
@@ -67,8 +74,10 @@ class ClauseVersion:
     amendment_paragraph: int | None = None
     apportionment: bool = False
     ambiguous: bool = False
-    ambiguous_old_text: str | None = None
+    old_text: str | None = None   # pre-amendment version, populated when ambiguous=True
+    new_text: str | None = None   # post-amendment version, populated when ambiguous=True
     exists: bool = True
+
 
 
 def _apply_substitution(text: str, old_value: str, new_value: str) -> str:
@@ -179,7 +188,8 @@ def resolve_clause(
     applied = False
     applied_paragraph: int | None = None
     ambiguous = False
-    ambiguous_old_text: str | None = None
+    _old_text: str | None = None
+    _new_text: str | None = None
 
     # Find all amendments targeting this clause
     for rec in amendments:
@@ -193,12 +203,13 @@ def resolve_clause(
                 # amendment but was not supplied.  Return both versions with
                 # ambiguous=True so the caller can decide — do not silently
                 # apply or withhold the amendment.
-                old_text = text  # pre-amendment (current value of text)
-                new_text = _apply_substitution(text, rec.old_value, rec.new_value)
+                old_text_val = text         # pre-amendment text
+                new_text_val = _apply_substitution(text, rec.old_value, rec.new_value)
                 ambiguous = True
-                ambiguous_old_text = old_text
-                text = new_text  # `text` holds the post-amendment version
-                # Don't mark as definitively applied
+                _old_text = old_text_val
+                _new_text = new_text_val
+                # text remains as the base for subsequent non-event_date amendments,
+                # but will be set to None in the final return below.
                 continue
             anchor_date = event_date
         else:
@@ -230,12 +241,24 @@ def resolve_clause(
             # insert_after creates a new clause — not handled here
             # (the new clause 10.5.3A would be in the index separately)
 
+    if ambiguous:
+        # text=None forces callers to use old_text/new_text explicitly.
+        return ClauseVersion(
+            clause_id=clause_id,
+            text=None,
+            is_amended=False,
+            amendment_paragraph=None,
+            ambiguous=True,
+            old_text=_old_text,
+            new_text=_new_text,
+            exists=True,
+        )
+
     return ClauseVersion(
         clause_id=clause_id,
         text=text,
         is_amended=applied,
         amendment_paragraph=applied_paragraph,
-        ambiguous=ambiguous,
-        ambiguous_old_text=ambiguous_old_text,
+        ambiguous=False,
         exists=True,
     )

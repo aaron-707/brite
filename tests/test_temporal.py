@@ -219,16 +219,24 @@ class TestAmbiguousResolution(unittest.TestCase):
         cv = self._resolve("4.3.2", det=date(2026, 4, 15), evt=None)
         self.assertTrue(cv.ambiguous, "Expected ambiguous=True when event_date is missing")
 
-    def test_432_no_event_date_text_is_new_version(self) -> None:
-        """§4.3.2 ambiguous: text field holds the NEW (post-amendment) version."""
+    def test_432_no_event_date_text_is_none(self) -> None:
+        """§4.3.2 ambiguous: .text must be None — naively accessing it returns None,
+        not a silently selected version.  Any caller that does cv.text.replace(...)
+        will get AttributeError on None rather than operating on the wrong clause."""
         cv = self._resolve("4.3.2", det=date(2026, 4, 15), evt=None)
-        self.assertIn("14 calendar days", cv.text)
+        self.assertIsNone(cv.text)
 
     def test_432_no_event_date_old_text_is_old_version(self) -> None:
-        """§4.3.2 ambiguous: ambiguous_old_text holds the OLD (pre-amendment) version."""
+        """§4.3.2 ambiguous: old_text holds the pre-amendment (10-day) version."""
         cv = self._resolve("4.3.2", det=date(2026, 4, 15), evt=None)
-        self.assertIsNotNone(cv.ambiguous_old_text)
-        self.assertIn("10 calendar days", cv.ambiguous_old_text)
+        self.assertIsNotNone(cv.old_text)
+        self.assertIn("10 calendar days", cv.old_text)
+
+    def test_432_no_event_date_new_text_is_new_version(self) -> None:
+        """§4.3.2 ambiguous: new_text holds the post-amendment (14-day) version."""
+        cv = self._resolve("4.3.2", det=date(2026, 4, 15), evt=None)
+        self.assertIsNotNone(cv.new_text)
+        self.assertIn("14 calendar days", cv.new_text)
 
     def test_432_no_event_date_is_not_definitively_amended(self) -> None:
         """§4.3.2 ambiguous: is_amended must be False — no amendment was definitively applied."""
@@ -236,18 +244,20 @@ class TestAmbiguousResolution(unittest.TestCase):
         self.assertFalse(cv.is_amended)
 
     def test_914_no_event_date_is_ambiguous(self) -> None:
-        """§9.1.4 with no event_date: result must be ambiguous=True."""
+        """§9.1.4 with no event_date: ambiguous=True, text=None, both versions available."""
         cv = self._resolve("9.1.4", det=date(2026, 4, 15), evt=None)
         self.assertTrue(cv.ambiguous)
-        self.assertIn("30 calendar days", cv.ambiguous_old_text)
-        self.assertIn("14 calendar days", cv.text)
+        self.assertIsNone(cv.text)
+        self.assertIn("30 calendar days", cv.old_text)
+        self.assertIn("14 calendar days", cv.new_text)
         self.assertFalse(cv.is_amended)
 
     def test_non_event_date_clause_not_ambiguous(self) -> None:
         """§6.4.1 (determination_date anchor) is never ambiguous — event_date irrelevant."""
         cv = self._resolve("6.4.1", det=date(2026, 4, 15), evt=None)
         self.assertFalse(cv.ambiguous)
-        self.assertIsNone(cv.ambiguous_old_text)
+        self.assertIsNone(cv.old_text)
+        self.assertIsNone(cv.new_text)
 
 
 class TestInsertedClause(unittest.TestCase):
