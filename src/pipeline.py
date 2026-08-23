@@ -291,6 +291,7 @@ class Pipeline:
         # The patched clause_text flows through unchanged for everything else
         # — no modifications to Gate/Synthesizer internals required.
         patched_results: list[RetrievalResult] = []
+        has_ambiguous = False
         for result in results:
             if result.clause_id in self._amended_ids:
                 try:
@@ -307,10 +308,14 @@ class Pipeline:
                         # text leak into Gate or Synthesizer.
                         continue
                     if cv.ambiguous:
-                        # Cannot resolve without event_date — use old_text
-                        # (conservative: don't silently apply post-amendment text)
-                        if cv.old_text is not None:
-                            result.clause_text = cv.old_text
+                        has_ambiguous = True
+                        result.clause_text = (
+                            f"[AMBIGUOUS VERSION - DEPENDS ON EVENT DATE]\n"
+                            f"If the change of circumstances occurred before 1 March 2026:\n"
+                            f"{cv.old_text}\n\n"
+                            f"If the change of circumstances occurred on or after 1 March 2026:\n"
+                            f"{cv.new_text}"
+                        )
                     elif cv.text is not None:
                         result.clause_text = cv.text
                 except KeyError:
@@ -336,7 +341,14 @@ class Pipeline:
             gate_decision.conflicts = _dedup_conflicts(gate_decision.conflicts)
 
         # Step 3 & 4: Synthesize + Validate (with retry)
-        correction: str | None = None
+        ambiguity_instruction = (
+            "IMPORTANT: The retrieved context contains ambiguous clauses where the applicable version "
+            "depends on when the change of circumstances occurred (before or on/after 1 March 2026). "
+            "You must state plainly that the answer depends on when the change of circumstances occurred, "
+            "provide both values with that condition clearly attached, and do not present either value "
+            "as the sole answer."
+        ) if has_ambiguous else None
+        correction: str | None = ambiguity_instruction
         last_output: SynthesizerOutput | None = None
         last_validation: ValidationResult | None = None
 
@@ -378,6 +390,8 @@ class Pipeline:
                 f"Remember: only cite clause ids from the provided clauses, "
                 f"and every factual claim must be supported by a cited clause."
             )
+            if ambiguity_instruction:
+                correction = ambiguity_instruction + "\n\n" + correction
 
         # All retries exhausted — return a REFUSE-style output
         error_summary = "; ".join(last_validation.errors) if last_validation else "Unknown"

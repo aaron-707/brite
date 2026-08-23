@@ -2,6 +2,7 @@
 import json
 import re
 import time
+from datetime import date
 from pathlib import Path
 from src.pipeline import Pipeline
 
@@ -66,6 +67,40 @@ QUESTIONS = [
         "expected_decision": "ANSWER",
         "notes": "Out-of-scope refusal test. The manual is entirely silent on dental or medical treatment costs. System must state the manual does not cover this and direct to supervisor or district office. A confident wrong answer here is a hard failure."
     },
+    {
+        "id": "Q11",
+        "query": "Under §6.4.1, how much of household earnings from employment is disregarded?",
+        "expected_decision": "ANSWER",
+        "determination_date": date(2026, 4, 15),
+        "notes": "Post-March query about §6.4.1 (earnings disregard) — expect $175."
+    },
+    {
+        "id": "Q12",
+        "query": "Under §6.4.1, how much of household earnings from employment is disregarded?",
+        "expected_decision": "ANSWER",
+        "determination_date": date(2026, 2, 15),
+        "notes": "Pre-March query about §6.4.1 (earnings disregard) — expect $120."
+    },
+    {
+        "id": "Q13",
+        "query": "How many days does a recipient have to report a change of circumstances?",
+        "expected_decision": "FLAG_CONFLICT",
+        "notes": "Reporting-deadline query with no event date mentioned — expect both 10 and 14 days with explanation of ambiguity depending on whether change occurred before or on/after 1 March 2026."
+    },
+    {
+        "id": "Q14",
+        "query": "Can a sanction be imposed for a failure to report where the change of circumstances would have increased the award?",
+        "expected_decision": "ANSWER",
+        "determination_date": date(2026, 2, 15),
+        "notes": "Query about §10.5.3A pre-March — expect clause is not yet in force, so it states the manual does not address this."
+    },
+    {
+        "id": "Q15",
+        "query": "Can a sanction be imposed for a failure to report where the change of circumstances would have increased the award?",
+        "expected_decision": "ANSWER",
+        "determination_date": date(2026, 4, 15),
+        "notes": "Query about §10.5.3A post-March — expect clause is in force (no sanction allowed)."
+    },
 ]
 
 
@@ -100,7 +135,9 @@ def run_evaluation() -> None:
 
         print(f"\nRunning {q['id']}: {q['query']}")
         try:
-            result = pipeline.run(q["query"])
+            det_date = q.get("determination_date")
+            evt_date = q.get("event_date")
+            result = pipeline.run(q["query"], determination_date=det_date, event_date=evt_date)
             
             # PASS/FAIL Criteria
             passed = True
@@ -133,12 +170,41 @@ def run_evaluation() -> None:
                     if "4.3.2" not in result.answer or "9.1.4" not in result.answer:
                         passed = False
                         fail_reason = "Clause numbers 4.3.2 and 9.1.4 not present in Q02 answer"
-                    elif "10 calendar days" not in result.answer.lower() or "30 calendar days" not in result.answer.lower():
+                    elif ("10 calendar days" not in result.answer.lower() and "10 days" not in result.answer.lower()) or ("30 calendar days" not in result.answer.lower() and "30 calendar day" not in result.answer.lower()):
                         passed = False
                         fail_reason = "Verbatim text of conflicting clauses not present in Q02 answer"
                     elif "operative" not in result.answer.lower() or ("consequence" not in result.answer.lower() and "provision" not in result.answer.lower() and "downstream" not in result.answer.lower()):
                         passed = False
                         fail_reason = "Explanation of operative rule vs downstream consequence not present in Q02 answer"
+                elif q["id"] == "Q13":
+                    if "4.3.2" not in result.answer:
+                        passed = False
+                        fail_reason = "Clause number 4.3.2 not present in Q13 answer"
+                    elif "10" not in result.answer or "14" not in result.answer:
+                        passed = False
+                        fail_reason = "Both 10 and 14 calendar days must be mentioned to address ambiguity in Q13"
+                    elif "before 1 march" not in result.answer.lower() or "after 1 march" not in result.answer.lower():
+                        passed = False
+                        fail_reason = "Answer must distinguish between changes occurring before vs on/after 1 March 2026 in Q13"
+
+            # Check custom assertions for Q11-Q15
+            if passed:
+                if q["id"] == "Q11":
+                    if "$175" not in result.answer:
+                        passed = False
+                        fail_reason = "Post-March earnings disregard amount of $175 not present in answer"
+                elif q["id"] == "Q12":
+                    if "$120" not in result.answer:
+                        passed = False
+                        fail_reason = "Pre-March earnings disregard amount of $120 not present in answer"
+                elif q["id"] == "Q14":
+                    if "10.5.3A" in result.citations or "10.5.3A" in result.answer:
+                        passed = False
+                        fail_reason = "Clause 10.5.3A must not be cited or present for pre-March Q14"
+                elif q["id"] == "Q15":
+                    if "10.5.3A" not in result.citations:
+                        passed = False
+                        fail_reason = "Clause 10.5.3A must be cited for post-March Q15"
             
             if passed:
                 passed_count += 1
