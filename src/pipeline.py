@@ -215,7 +215,7 @@ def main() -> None:
         cids = []
         for conflict in result.gate_decision.conflicts:
             cids.extend(re.findall(r"(\d+\.\d+(?:\.\d+)?)", conflict))
-        cids = sorted(list(set(cids)))
+        cids = sorted(list(set(cids)), key=lambda c: tuple(int(p) if p.isdigit() else p for p in c.split(".")))
         if cids:
             print("\nConflicting provisions:")
             for cid in cids:
