@@ -85,4 +85,17 @@ def parse_corpus(path: str | Path | None = None) -> list[Clause]:
 
 def build_clause_index(clauses: list[Clause]) -> dict[str, Clause]:
     """Return a dict mapping clause_id -> Clause for O(1) lookup."""
-    return {c.clause_id: c for c in clauses}
+    clause_index = {}
+    for c in clauses:
+        clause_id = c.clause_id
+        if clause_id in clause_index:
+            import warnings
+            warnings.warn(
+                f"Duplicate clause ID '{clause_id}' found in manual. "
+                f"First occurrence retained. Check the manual for errors.",
+                UserWarning,
+                stacklevel=2
+            )
+        else:
+            clause_index[clause_id] = c
+    return clause_index
