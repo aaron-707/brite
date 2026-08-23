@@ -357,7 +357,17 @@ To respect this interaction, the pipeline resolver dynamically constructs and fo
 
 **Why `AmendmentRecord.old_value` / `new_value` rather than full clause text**: §6.4.1's full text contains multiple dollar figures (e.g., `$120` and `$200` for different thresholds), which would violate the "exactly one dollar figure" constraint and fail. Substituting the clean amendment record's target values (`"$120 per month"` and `"$175 per month"`) ensures precise numeric extraction.
 
-**Synthetic context injection**: The computed figure is injected as a synthetic `RetrievalResult` under `clause_id="proration.calc"`. This allows the citation validator to verify the computed number against the retrieved context, avoiding validation failures while instructing the LLM to cite the actual citable clauses (§6.4.1 and §5.3) instead of `proration.calc`.
+**Synthetic context injection**: The computed figure is injected as a synthetic `RetrievalResult` under `clause_id="proration.calc"`. This allows the citation validator to verify the computed number against the retrieved context, avoiding validation failures. The LLM is explicitly instructed not to cite `proration.calc` directly — it must cite `§6.4.1` and `§5.3` in the same sentence.
+
+**Validator fix — empty-token continuation fast-path**: A boundary-restatement sentence like `"The claim period from 2026-02-01 to 2026-04-01 spans the 1 March 2026 boundary."` is purely restating query context. Its `filtered_sent_tokens` (after removing query tokens and stopwords) is empty. We added a fast-path: if `filtered_sent_tokens` is empty for an uncited sentence, skip it — it makes no new factual claim beyond the query itself. This mirrors the identical existing fast-path already applied to cited sentences in `is_clause_supported`.
+
+**Hand-verified test case (Q20)**:
+- Claim period: 1 February 2026 – 1 April 2026 (60 days)
+- Days before 1 March: 28 (February: 1 Feb – 28 Feb)
+- Days on/after 1 March: 32 (March 1 – April 1)
+- Prorated = (28 × $120 + 32 × $175) / 60 = ($3,360 + $5,600) / 60 = $8,960 / 60 = **$149.33**
+- Pipeline output: $149.33 per month — matches hand-verified figure exactly.
+
 
 
 ### Retrospective Design Note: What I'd Do Differently
