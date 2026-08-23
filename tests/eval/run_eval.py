@@ -16,8 +16,8 @@ QUESTIONS = [
     {
         "id": "Q02",
         "query": "How many days does a recipient have to report a change of circumstances?",
-        "expected_decision": "FLAG_CONFLICT",
-        "notes": "Must surface §4.3.2 (10 days) vs §9.1.4 (30 days) contradiction."
+        "expected_decision": "ANSWER",
+        "notes": "Tests the current post-March rule under the system date (14 days, no conflict)."
     },
     {
         "id": "Q03",
@@ -85,6 +85,7 @@ QUESTIONS = [
         "id": "Q13",
         "query": "How many days does a recipient have to report a change of circumstances?",
         "expected_decision": "FLAG_CONFLICT",
+        "determination_date": date(2026, 4, 15),
         "notes": "Reporting-deadline query with no event date mentioned — expect both 10 and 14 days with explanation of ambiguity depending on whether change occurred before or on/after 1 March 2026."
     },
     {
@@ -100,6 +101,13 @@ QUESTIONS = [
         "expected_decision": "ANSWER",
         "determination_date": date(2026, 4, 15),
         "notes": "Query about §10.5.3A post-March — expect clause is in force (no sanction allowed)."
+    },
+    {
+        "id": "Q16",
+        "query": "How many days does a recipient have to report a change of circumstances?",
+        "expected_decision": "FLAG_CONFLICT",
+        "determination_date": date(2026, 2, 15),
+        "notes": "Historical regression case for Q02: pre-March 2026 contradiction between §4.3.2 (10 days) and §9.1.4 (30 days)."
     },
 ]
 
@@ -166,16 +174,16 @@ def run_evaluation() -> None:
                 if escalation_phrase not in result.answer:
                     passed = False
                     fail_reason = "Escalation instruction not present in FLAG_CONFLICT answer"
-                elif q["id"] == "Q02":
+                elif q["id"] == "Q16":
                     if "4.3.2" not in result.answer or "9.1.4" not in result.answer:
                         passed = False
-                        fail_reason = "Clause numbers 4.3.2 and 9.1.4 not present in Q02 answer"
+                        fail_reason = "Clause numbers 4.3.2 and 9.1.4 not present in Q16 answer"
                     elif ("10 calendar days" not in result.answer.lower() and "10 days" not in result.answer.lower()) or ("30 calendar days" not in result.answer.lower() and "30 calendar day" not in result.answer.lower()):
                         passed = False
-                        fail_reason = "Verbatim text of conflicting clauses not present in Q02 answer"
+                        fail_reason = "Verbatim text of conflicting clauses not present in Q16 answer"
                     elif "operative" not in result.answer.lower() or ("consequence" not in result.answer.lower() and "provision" not in result.answer.lower() and "downstream" not in result.answer.lower()):
                         passed = False
-                        fail_reason = "Explanation of operative rule vs downstream consequence not present in Q02 answer"
+                        fail_reason = "Explanation of operative rule vs downstream consequence not present in Q16 answer"
                 elif q["id"] == "Q13":
                     if "4.3.2" not in result.answer:
                         passed = False
@@ -255,7 +263,7 @@ def run_evaluation() -> None:
             })
         
         # Sleep to prevent hitting Gemini rate limits (15 RPM)
-        time.sleep(3)
+        time.sleep(5)
 
     # Ensure tests/eval directory exists
     output_path = Path("tests/eval/results.json")

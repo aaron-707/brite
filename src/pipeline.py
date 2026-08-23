@@ -242,12 +242,18 @@ class Pipeline:
         """
         # ── Temporal date resolution ──────────────────────────────────────
         # Always extract from question text first; explicit overrides win.
+        det_overridden = determination_date is not None
         extracted_det, extracted_evt = _extract_dates(question)
         if determination_date is None:
             determination_date = extracted_det
         if event_date is None:
             event_date = extracted_evt
         # (If the caller passed explicit dates, extraction results are discarded.)
+
+        # Default event_date to determination_date if no overrides or extracted
+        # event dates were found, so that default-date queries reflect current reality.
+        if event_date is None and not det_overridden:
+            event_date = determination_date
 
         # Fast path: raw clause reference lookup
         stripped = question.strip()
