@@ -2,12 +2,15 @@
   {
     "id": "Q01",
     "query": "Can a person aged 16 apply for assistance?",
-    "decision": "REFUSE",
+    "decision": "ANSWER",
     "expected_decision": "ANSWER",
-    "pass": false,
-    "fail_reason": "Decision mismatch: expected ANSWER, got REFUSE",
-    "answer": "Unable to generate a fully verified answer after 2 attempts. Validation errors: Unverified claim: They must not be a member of any other household and must lack a person with parental responsibility who is able and willing to provide support, or they must be a parent of a dependent child residing with them.. Please ask a supervisor for assistance.",
-    "citations": []
+    "pass": true,
+    "fail_reason": null,
+    "answer": "Yes, a person aged 16 may be eligible for assistance if they meet specific criteria (2.3.1). They must not be a member of another household, must lack parental support, or must be a parent to a dependent child living with them. Additionally, the applicant must meet all general eligibility conditions, such as being a resident of Calder County, having income and resources within the allowed limits, and not being excluded from the program (2.1.2).",
+    "citations": [
+      "2.1.2",
+      "2.3.1"
+    ]
   },
   {
     "id": "Q02",
@@ -28,7 +31,7 @@
     "expected_decision": "FLAG_CONFLICT",
     "pass": true,
     "fail_reason": null,
-    "answer": "The manual does not provide a specific calculation method for full-time students. While the needs figure is generally based on household size and composition (7.1.3), the policy manual contains a structural conflict regarding full-time students. Specifically, section 7.1.3 directs caseworkers to section 5.4 for the needs figure calculation for full-time students, but section 5.4 does not contain information relevant to this calculation. Conflicting provisions: 7.1.3: \"The needs figure is calculated by reference to household size and composition, except in the case of full-time students (see §5.4), and is subject to the adjustments in §7.3.\" 5.4.1: \"Where a household member is in receipt of a care allowance in respect…\" This matter should be referred to a supervisor before any determination is made.",
+    "answer": "The manual does not provide a specific calculation method for full-time students. While the needs figure is generally calculated based on household size and composition, the policy explicitly states that this rule does not apply to full-time students (7.1.3). There is a structural conflict in the manual regarding this matter. Clause 7.1.3 directs the reader to section 5.4 for information on full-time students, but section 5.4 is not provided in the retrieved clauses. Conflicting provisions: 7.1.3: The needs figure is calculated by reference to household size and composition, except in the case of full-time students (see §5.4), and is subject to the adjustments in §7.3. This matter should be referred to a supervisor before any determination is made.",
     "citations": [
       "7.1.3"
     ]
@@ -53,12 +56,10 @@
     "expected_decision": "ANSWER",
     "pass": true,
     "fail_reason": null,
-    "answer": "A recipient remains eligible while temporarily absent from Calder County for the first 28 days (3.2.1). During this period, the award remains unchanged (5.1.2). An absence that lasts longer than this period ends eligibility starting on the first day after the 28-day limit (3.2.4). This rule applies because the 90-day extension only applies to specific reasons like medical treatment or attending to the affairs of a deceased relative, which does not include your recipient's non-medical reason (3.2.2).",
+    "answer": "A recipient remains eligible while temporarily absent from Calder County for the first 28 days (3.2.1). Because your recipient has been absent for 45 days for non-medical reasons, they have exceeded this period. An absence that goes beyond the allowed time ends eligibility starting on the first day after that period expires (3.2.4). This rule applies unless the Department is satisfied that the recipient intended to return and the extended absence was outside of their control.",
     "citations": [
       "3.2.1",
-      "3.2.2",
-      "3.2.4",
-      "5.1.2"
+      "3.2.4"
     ]
   },
   {
@@ -80,7 +81,7 @@
     "expected_decision": "ANSWER",
     "pass": true,
     "fail_reason": null,
-    "answer": "The Department is required to complete a review within 30 days of the request (11.2.3). If the Department fails to meet this deadline, an appeal may be lodged before the review is completed (12.1.3).",
+    "answer": "The Department must complete a review within 30 days of the request (11.2.3). If the Department fails to meet this deadline, an appeal may be lodged even if the review is not yet finished (12.1.3).",
     "citations": [
       "11.2.3",
       "12.1.3"
@@ -93,7 +94,7 @@
     "expected_decision": "ANSWER",
     "pass": true,
     "fail_reason": null,
-    "answer": "The maximum deduction from an ongoing award to recover an overpayment is 10 percent of the monthly award (9.3.2). However, if the Department determines that a recipient deliberately misrepresented or failed to disclose a material fact, the recovery rate may increase to 20 percent (9.6.1). Recovery can be made through these deductions, agreed installments, or other lawful means (9.3.1).",
+    "answer": "The maximum deduction from an ongoing award to recover an overpayment is 10 percent of the monthly award (9.3.2). However, this limit increases to 20 percent if the Department determines that a recipient deliberately misrepresented or failed to disclose a material fact (9.6.1). Recovery can be made through these deductions, agreed installments, or other lawful means (9.3.1).",
     "citations": [
       "9.3.1",
       "9.3.2",
@@ -107,7 +108,7 @@
     "expected_decision": "ANSWER",
     "pass": true,
     "fail_reason": null,
-    "answer": "If a person has requested a review and is unhappy with the outcome, they may appeal to the Calder County Assistance Appeals Panel (12.1.1). This appeal must be filed within 30 days of the date the review outcome was sent (12.1.2). The notification of the review outcome must inform the person of their right to appeal (11.3.2). The provided policy manual does not contain information regarding specific support services available to assist recipients during the appeals process. Please contact your district office or supervisor for guidance.",
+    "answer": "If a person has requested a review and is unhappy with the outcome, they may appeal to the Calder County Assistance Appeals Panel (12.1.1). This appeal must be filed within 30 days of the date the review outcome was sent (12.1.2). The notification of the review outcome must inform the recipient of this right to appeal (11.3.2). The provided manual does not contain information regarding specific support services available to assist recipients during the appeal process.",
     "citations": [
       "11.3.2",
       "12.1.1",
@@ -121,10 +122,8 @@
     "expected_decision": "ANSWER",
     "pass": true,
     "fail_reason": null,
-    "answer": "The provided manual does not cover whether the program pays for dental treatment costs. The program provides monthly financial assistance for essential living costs and access to support services (1.1.1), but it does not specify if dental care is included. Please contact your district office or supervisor for guidance.",
-    "citations": [
-      "1.1.1"
-    ]
+    "answer": "The provided manual does not cover whether dental treatment costs are included in the program. Please contact your district office or supervisor for guidance.",
+    "citations": []
   },
   {
     "id": "Q11",
@@ -172,7 +171,7 @@
     "expected_decision": "ANSWER",
     "pass": true,
     "fail_reason": null,
-    "answer": "The Department may impose a sanction if a recipient fails to report a change of circumstances within 10 calendar days, as required by §4.3.2, provided the recipient does not have good cause (10.5.1). A sanction is a 20 percent reduction of the monthly award for 4 or 8 weeks (10.5.2). The provided policy manual does not state that a sanction is prohibited if the unreported change would have increased the award amount. However, a sanction cannot be imposed if the household includes a dependent child under age 2 or if the recipient requires assistance with two or more activities of daily living (10.5.3). Conflicting provisions: §4.3.2 states a recipient must report changes within 10 calendar days. §9.1.4 references a 30 calendar day period for reporting changes. The 10-day requirement in §4.3.2 is the operative rule for reporting obligations, while the 30-day reference in §9.1.4 relates to the downstream consequence of establishing an overpayment. This matter should be referred to a supervisor before any determination is made.",
+    "answer": "The Department may impose a sanction if a recipient fails to report a change of circumstances within 10 calendar days, regardless of whether that change would have increased the award (10.5.1). A sanction is a 20 percent reduction of the monthly award for 4 or 8 weeks (10.5.2). However, a sanction cannot be imposed if the household includes a dependent child under age 2 or if the recipient requires assistance with two or more activities of daily living (10.5.3). Conflicting provisions: §4.3.2 states a recipient must report changes within 10 calendar days, while §9.1.4 references a 30 calendar day period for reporting changes. The 10-day requirement in §4.3.2 is the operative rule for reporting obligations, while the 30-day reference in §9.1.4 relates to the downstream consequence of overpayment recovery. §4.3.2: A recipient must report any change in household composition, income, address, or the circumstances of any household member within 10 calendar days of the change occurring, or within 10 calendar days of the recipient becoming aware of the change, whichever is later. §9.1.4: Where an overpayment has arisen from a change of circumstances, and the recipient reported the change within the 30 calendar days required under §4.3, no overpayment shall be established in respect of any period before the date on which the Department was in a position to act on the report. This matter should be referred to a supervisor before any determination is made.",
     "citations": [
       "4.3.2",
       "9.1.4",
@@ -188,11 +187,10 @@
     "expected_decision": "ANSWER",
     "pass": true,
     "fail_reason": null,
-    "answer": "A sanction must not be imposed for a failure to report if the change of circumstances would have resulted in an increased award (10.5.3A). While the Department may generally impose a sanction for failing to report a change of circumstances (10.5.1), this specific exception prevents such action when the change would have been beneficial to the recipient. Conflicting provisions: Regarding the reporting timeline, §4.3.2 requires reporting within 10 calendar days for changes before 1 March 2026, and 14 calendar days for changes on or after 1 March 2026. Regarding overpayment recovery, §9.1.4 states that if a change is reported within 30 calendar days (for changes before 1 March 2026) or 14 calendar days (for changes on or after 1 March 2026), no overpayment is established for the period before the Department could act. In these conflicts, the reporting deadline in §4.3.2 is the operative rule, while the recovery period in §9.1.4 is the downstream consequence. This matter should be referred to a supervisor before any determination is made.",
+    "answer": "A sanction must not be imposed for a failure to report a change of circumstances if that change would have resulted in an increased award (10.5.3A). Conflicting provisions: Regarding the reporting timeline, §4.3.2 states that for changes before 1 March 2026, a recipient must report within 10 calendar days, while for changes on or after 1 March 2026, the requirement is 14 calendar days. Regarding overpayment recovery, §9.1.4 states that for changes before 1 March 2026, no overpayment is established if reported within 30 calendar days, while for changes on or after 1 March 2026, the requirement is 14 calendar days. In these conflicts, the reporting timeline in §4.3.2 acts as the operative rule for compliance, while the recovery period in §9.1.4 acts as the downstream consequence. This matter should be referred to a supervisor before any determination is made.",
     "citations": [
       "4.3.2",
       "9.1.4",
-      "10.5.1",
       "10.5.3A"
     ]
   },
@@ -216,7 +214,7 @@
     "expected_decision": "FLAG_CONFLICT",
     "pass": true,
     "fail_reason": null,
-    "answer": "The time frame for a recipient to report a change of circumstances depends on when that change occurred. If the change occurred before 1 March 2026, the recipient must report it within 10 calendar days (4.3.2). If the change occurred on or after 1 March 2026, the recipient must report it within 14 calendar days (4.3.2). Conflicting provisions: There is a conflict between the reporting deadline in §4.3.2 and the reference to reporting timelines in §9.1.4. For changes before 1 March 2026, §4.3.2 sets a 10-day reporting requirement, while §9.1.4 references a 30-day requirement. For changes on or after 1 March 2026, §4.3.2 sets a 14-day requirement, which aligns with the 14-day reference in §9.1.4. In these instances, §4.3.2 serves as the operative rule for the reporting obligation, while §9.1.4 serves as the downstream consequence regarding overpayment recovery. Verbatim text of §4.3.2: [AMBIGUOUS VERSION - DEPENDS ON EVENT DATE] If the change of circumstances occurred before 1 March 2026: 4.3.2 A recipient must report any change in household composition, income, address, or the circumstances of any household member within 10 calendar days of the change occurring, or within 10 calendar days of the recipient becoming aware of the change, whichever is later. If the change of circumstances occurred on or after 1 March 2026: 4.3.2 A recipient must report any change in household composition, income, address, or the circumstances of any household member within 14 calendar days of the change occurring, or within 14 calendar days of the recipient becoming aware of the change, whichever is later. Verbatim text of §9.1.4: [AMBIGUOUS VERSION - DEPENDS ON EVENT DATE] If the change of circumstances occurred before 1 March 2026: 9.1.4 Where an overpayment has arisen from a change of circumstances, and the recipient reported the change within the 30 calendar days required under §4.3, no overpayment shall be established in respect of any period before the date on which the Department was in a position to act on the report. If the change of circumstances occurred on or after 1 March 2026: 9.1.4 Where an overpayment has arisen from a change of circumstances, and the recipient reported the change within the 14 calendar days required under §4.3, no overpayment shall be established in respect of any period before the date on which the Department was in a position to act on the report. This matter should be referred to a supervisor before any determination is made.",
+    "answer": "The time frame for reporting a change of circumstances depends on when the change occurred. If the change occurred before 1 March 2026, the recipient must report it within 10 calendar days (4.3.2). If the change occurred on or after 1 March 2026, the recipient must report it within 14 calendar days (4.3.2). Conflicting provisions: There is a conflict between the reporting deadline in §4.3.2 and the reference to reporting deadlines in §9.1.4. For changes before 1 March 2026, §4.3.2 sets a 10-day operative rule, while §9.1.4 references a 30-day period as a downstream consequence for overpayment recovery. For changes on or after 1 March 2026, both clauses align on a 14-day period. Verbatim text of §4.3.2: If the change of circumstances occurred before 1 March 2026: 4.3.2 A recipient must report any change in household composition, income, address, or the circumstances of any household member within 10 calendar days of the change occurring, or within 10 calendar days of the recipient becoming aware of the change, whichever is later. If the change of circumstances occurred on or after 1 March 2026: 4.3.2 A recipient must report any change in household composition, income, address, or the circumstances of any household member within 14 calendar days of the change occurring, or within 14 calendar days of the recipient becoming aware of the change, whichever is later. Verbatim text of §9.1.4: If the change of circumstances occurred before 1 March 2026: 9.1.4 Where an overpayment has arisen from a change of circumstances, and the recipient reported the change within the 30 calendar days required under §4.3, no overpayment shall be established in respect of any period before the date on which the Department was in a position to act on the report. If the change of circumstances occurred on or after 1 March 2026: 9.1.4 Where an overpayment has arisen from a change of circumstances, and the recipient reported the change within the 14 calendar days required under §4.3, no overpayment shall be established in respect of any period before the date on which the Department was in a position to act on the report. This matter should be referred to a supervisor before any determination is made.",
     "citations": [
       "4.3.2",
       "9.1.4"
@@ -242,7 +240,7 @@
     "expected_decision": "ANSWER",
     "pass": true,
     "fail_reason": null,
-    "answer": "For a claim covering 15 February to 15 March 2026, the earnings disregard amount is subject to an amendment boundary because the claim spans 1 March 2026 (5.3). Because the claim period spans this date, the award must be apportioned across the two rate periods based on the number of days (7.4.3). For the portion of the claim before 1 March 2026, the disregard for household earnings from employment is $120 per month (6.4.1). For the portion of the claim on or after 1 March 2026, the disregard for household earnings from employment is $175 per month (6.4.1). This disregard applies once per household rather than once per earner (6.4.2).",
+    "answer": "The earnings disregard for a claim spanning 15 February to 15 March 2026 must be determined by applying the rates in force on each day of the period because the claim spans the 1 March 2026 amendment boundary (5.3). The award must be apportioned across the two rate periods based on the number of days (7.4.3). For the portion of the claim before 1 March 2026, the disregard for household earnings from employment is $120 per month (6.4.1). For the portion of the claim on or after 1 March 2026, the disregard for household earnings from employment is $175 per month (6.4.1). This disregard applies once per household rather than once per earner (6.4.2).",
     "citations": [
       "5.3",
       "6.4.1",

@@ -113,6 +113,14 @@ class CitationValidator:
         # Extract question tokens to ignore in verification overlap
         question_tokens = self._tokenize(question) if question else set()
 
+        # Collect all digits that are part of clause IDs to exclude from query/fact digits
+        clause_id_digits = set()
+        for cid in retrieved_ids:
+            clause_id_digits.update(re.findall(r"\d+", cid))
+        if question:
+            for cid in _CITE_RE.findall(question):
+                clause_id_digits.update(re.findall(r"\d+", cid))
+
         for sentence in sentences:
             stripped = sentence.strip()
             if not stripped:
@@ -132,33 +140,62 @@ class CitationValidator:
             cited_in_sentence = _CITE_RE.findall(stripped)
             valid_cited = [c for c in cited_in_sentence if c in retrieved_ids]
 
-            if not valid_cited:
-                # Check if it's a factual claim (contains numbers, specific terms)
-                if self._is_factual(stripped):
-                    unverified.append(stripped)
-                continue
-
-            # Check keyword overlap between sentence and cited clause text
+            # Tokenize sentence
             sent_tokens = self._tokenize(stripped)
             if not sent_tokens:
                 continue
 
             # Exclude tokens derived from the query itself
             filtered_sent_tokens = sent_tokens - question_tokens
-            if not filtered_sent_tokens:
-                # Sentence contains only query terms or stopwords; it is verified by definition
-                supported = True
-            else:
-                supported = False
-                for cid in valid_cited:
-                    if cid in clause_texts:
-                        clause_tokens = self._tokenize(clause_texts[cid])
-                        if not clause_tokens:
-                            continue
-                        overlap = len(filtered_sent_tokens & clause_tokens) / len(filtered_sent_tokens)
-                        if overlap >= self.min_support_overlap:
-                            supported = True
-                            break
+
+            # Extract digits for validation (excluding section/clause ID digits)
+            sent_digits = {t for t in sent_tokens if t.isdigit()} - clause_id_digits
+            query_digits = {t for t in question_tokens if t.isdigit()} - clause_id_digits
+            has_query_digit = any(d in query_digits for d in sent_digits)
+
+            def is_clause_supported(cid: str, c_text: str) -> bool:
+                c_tokens = self._tokenize(c_text)
+                if not c_tokens:
+                    return False
+                
+                # Exclude digits that make up section references or the clause ID
+                c_digits = {t for t in c_tokens if t.isdigit()} - clause_id_digits
+                
+                # Enforce digit/threshold constraint:
+                # If the sentence contains a query digit (e.g. '45'), and the clause
+                # has digits/thresholds (e.g. '28'), at least one of those clause
+                # digits must be present in the sentence.
+                if has_query_digit and c_digits:
+                    if not any(d in c_digits for d in sent_digits):
+                        return False
+
+                if not filtered_sent_tokens:
+                    # If sentence is all query/stopwords, it's supported by definition
+                    # (provided it passed the digit/threshold check above)
+                    return True
+
+                overlap = len(filtered_sent_tokens & c_tokens) / len(filtered_sent_tokens)
+                return overlap >= self.min_support_overlap
+
+            if not valid_cited:
+                # Factual sentences without citations are checked against all retrieved clauses
+                if self._is_factual(stripped):
+                    supported_by_any = False
+                    for cid in retrieved_ids:
+                        if cid in clause_texts:
+                            if is_clause_supported(cid, clause_texts[cid]):
+                                supported_by_any = True
+                                break
+                    if not supported_by_any:
+                        unverified.append(stripped)
+                continue
+
+            supported = False
+            for cid in valid_cited:
+                if cid in clause_texts:
+                    if is_clause_supported(cid, clause_texts[cid]):
+                        supported = True
+                        break
 
             if not supported:
                 unverified.append(

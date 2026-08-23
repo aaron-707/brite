@@ -490,10 +490,17 @@ class Pipeline:
             last_validation = validation
 
             if validation.valid:
+                ans = synth_output.answer
+                if gate_decision.decision == "FLAG_CONFLICT":
+                    escalation_phrase = "This matter should be referred to a supervisor before any determination is made."
+                    if escalation_phrase not in ans:
+                        ans_stripped = ans.strip()
+                        if not ans_stripped.endswith(escalation_phrase):
+                            ans = ans_stripped + " " + escalation_phrase
                 return PipelineResult(
                     question=question,
                     decision=gate_decision.decision,
-                    answer=synth_output.answer,
+                    answer=ans,
                     citations=synth_output.cited_clause_ids,
                     gate_decision=gate_decision,
                     validation=validation,
