@@ -59,6 +59,7 @@ STRUCTURAL_CONNECTIVES = [
     "referred to in",
     "where",
     "except where",
+    "listed in",
 ]
 
 

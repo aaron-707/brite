@@ -62,6 +62,9 @@ def parse_corpus(path: str | Path | None = None) -> list[Clause]:
     def _flush() -> None:
         nonlocal current_id, current_lines
         if current_id is not None:
+            # Strip trailing empty lines or separator rules
+            while current_lines and (not current_lines[-1].strip() or current_lines[-1].strip() == "---"):
+                current_lines.pop()
             body = "\n".join(current_lines).strip()
             xrefs = _XREF_RE.findall(body)
             # Remove self-references
@@ -71,11 +74,14 @@ def parse_corpus(path: str | Path | None = None) -> list[Clause]:
         current_lines = []
 
     for line in lines:
-        m = _CLAUSE_RE.match(line.strip())
+        stripped = line.strip()
+        m = _CLAUSE_RE.match(stripped)
         if m:
             _flush()
             current_id = m.group(1)
             current_lines = [line]
+        elif stripped.startswith("#"):
+            _flush()
         elif current_id is not None:
             current_lines.append(line)
 
