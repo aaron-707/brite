@@ -201,8 +201,21 @@ Results:
 - Deleted clause: Pipeline handled the missing clause gracefully.
   Queries that previously cited §3.2.3 either retrieved adjacent
   clauses or honestly stated the information was not available.
-- 10-question eval: 9/10 passed after
-  corpus change, no code changes.
+- 10-question eval: 9/10 pass after corpus change, no code
+  changes. The one failure (Q05 — temporary absence for
+  non-medical reasons) is expected: deleting §3.2.3 dropped
+  the coverage score below threshold and triggered a safe
+  REFUSE rather than a wrong answer. This is correct
+  degradation behaviour.
+
+  Known limitation surfaced: the natural language query
+  'what is the resource limit' did not retrieve §2.4.1
+  directly — it required a raw clause lookup to confirm
+  the updated $5,000 value. The retriever surfaces §2.4.1
+  correctly when resource limit vocabulary appears in a
+  broader query context (e.g. Q04 in the eval set). This
+  is a retrieval consistency issue, not a corpus-swap
+  issue, and is noted here for completeness.
 
 This confirms the architecture is corpus-independent. The parser,
 retriever, and gate all re-derive their state from the raw corpus
