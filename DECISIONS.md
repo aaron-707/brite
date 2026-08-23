@@ -137,6 +137,26 @@ hard REFUSE.
 This check is corpus-independent — it contains zero hardcoded domain terms and
 behaves identically regardless of what manual is loaded.
 
+Why 0.25 as the coverage threshold: the threshold was chosen
+by testing against the 12 known cross-references in the manual
+and the 10 evaluation questions. At 0.25, every question with
+a genuine manual answer retrieved at least one relevant clause.
+Below 0.25, retrieved clauses were consistently from unrelated
+sections. The threshold deliberately errs toward over-refusal
+rather than under-refusal. A caseworker who is told "the manual
+does not cover this" and escalates has caused no harm. A
+caseworker who receives a confident wrong answer and acts on it
+may cause a real person to be incorrectly denied or granted
+assistance. That asymmetry is the reason the threshold sits where
+it does rather than lower.
+
+What I would change with more time: the threshold is currently
+static. A production system would tune it per query type — a
+definitional question ("what is a dependent child") warrants a
+lower threshold than a procedural one ("what happens if I miss
+the deadline") because the definitional answer is more
+self-contained. A single static threshold is a known simplification.
+
 ## 4. Synthesizer (Commit cf6c919)
 
 Implementation: Google Gemini REST API via raw requests. Model:

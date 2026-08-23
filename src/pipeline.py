@@ -215,6 +215,12 @@ def main() -> None:
     print(f"\nAnswer:\n{result.answer}")
     if result.citations:
         print(f"\nCitations: {', '.join('§' + c for c in result.citations)}")
+        print("\nSources:")
+        for clause_id in result.citations:
+            clause = pipeline.clause_index.get(clause_id)
+            if clause:
+                print(f"\n  §{clause_id}: {clause.text[:300]}"
+                      f"{'...' if len(clause.text) > 300 else ''}")
     if result.validation and not result.validation.valid:
         print(f"\nValidation errors: {result.validation.errors}")
 
