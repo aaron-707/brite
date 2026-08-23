@@ -121,6 +121,12 @@ QUESTIONS = [
         "expected_decision": "FLAG_CONFLICT",
         "notes": "Tests pre-March contradiction via natural-language date extraction (February 2026 determination)."
     },
+    {
+        "id": "Q19",
+        "query": "what is the earnings disregard amount for a claim covering 15 February to 15 March 2026",
+        "expected_decision": "ANSWER",
+        "notes": "Tests claim period spanning 1 March 2026 boundary (apportionment under §5.3 and §7.4.3)."
+    },
 ]
 
 
@@ -227,6 +233,13 @@ def run_evaluation() -> None:
                     if "10.5.3A" not in result.citations:
                         passed = False
                         fail_reason = "Clause 10.5.3A must be cited for post-March Q15"
+                elif q["id"] == "Q19":
+                    if "5.3" not in result.citations or "7.4.3" not in result.citations or "6.4.1" not in result.citations:
+                        passed = False
+                        fail_reason = "Required citations (5.3, 7.4.3, 6.4.1) not present in Q19"
+                    elif "apportion" not in result.answer.lower():
+                        passed = False
+                        fail_reason = "Answer must state that the award must be apportioned in Q19"
             
             if passed:
                 passed_count += 1

@@ -275,3 +275,23 @@ a staff directory or role mapping. 3. Corpus integrity checks on ingest —
 currently warnings are emitted for duplicate IDs but ingest continues. A
 production system should reject a malformed corpus and alert the maintainer
 before serving any queries.
+
+## 9. Day-Two Amendment Integration (Commit 02c41f5 and subsequent commits)
+
+### Temporal Resolver Design
+To support the January 2026 amendment (`amendment-2026-01.md`), we built a temporal resolver (`src/temporal.py`) with a `resolve_clause` function. Given the determination date and event date, it resolves the correct version of any clause.
+- **Transitional Rules**: Paragraph 2 amendments are event-date anchored (§5.2); Paragraphs 1, 3, and 4 are determination-date anchored (§5.1).
+- **Ambiguity Handling**: If a post-March query does not specify an event date, the resolver returns `ambiguous=True`, setting `text=None` and populating `old_text` and `new_text`. In-place patching in `src/pipeline.py` formats the retrieved clause text to show both versions side-by-side and injects a dynamic prompt warning the synthesizer that it must state the dependency and not pick a single-value answer.
+- **Generic Query Defaulting**: If a user asks a generic query with no dates at all, the temporal resolver defaults both determination and event dates to today's date (August 2026), resolving to the post-amendment version of the rules with no conflict.
+- **Pre-Effective date checks**: We resolved a bug where queries with a pre-March determination date and no event date were flagged as ambiguous. Since the determination date is pre-March, any event date must also be pre-March, so the pre-amendment text is unconditionally applied with no ambiguity.
+
+### Retriever Fix for §10.5.3A (Synthetic Clauses)
+Because §10.5.3A was inserted by the amendment, it does not exist in the base manual. We modified the pipeline startup to inject `§10.5.3A` from parsed amendments into the retriever's index using its post-amendment text. If a query's temporal context is pre-March, in-place patching filters it out (`exists=False`) so the synthesizer behaves as if the clause does not exist yet. This allows it to be retrieved for post-March queries without breaking pre-March historical runs.
+
+### Claim Apportionment (§5.3 / §7.4.3)
+If a query's date range spans the 1 March 2026 boundary, the system sets `has_apportionment = True` (by checking if the query contains at least two dates that span the boundary).
+- **Synthetic Insertion**: Since the validator requires every factual claim in the answer to be supported by retrieved clauses, we dynamically inject §5.3 (from the amendment) and §7.4.3 (from the base manual) as retrieved documents into the RAG results when apportionment is active.
+- **Output**: The synthesizer is instructed to state that the claim spans the boundary, cite §5.3 and §7.4.3, and say the award must be apportioned without attempting to calculate the actual prorated arithmetic, which is deliberately left out of scope for this text-retrieval system.
+
+### Retrospective Design Note: What I'd Do Differently
+If I had known the amendment was coming, I would have made **clause versions** a first-class concept in the parser and database from day one, rather than bolting them onto retriever outputs as a post-retrieval overlay patch. Storing clauses as a temporal range database (`[start_date, end_date)`) and indexing every historical version separately in the retriever would have made the gating and retrieval logic completely natural and unified, rather than requiring dynamic text patching and synthetic document injections.

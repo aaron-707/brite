@@ -190,6 +190,7 @@ def resolve_clause(
     ambiguous = False
     _old_text: str | None = None
     _new_text: str | None = None
+    is_apportioned = False
 
     # Find all amendments targeting this clause
     for rec in amendments:
@@ -222,16 +223,14 @@ def resolve_clause(
             # §5.1: keyed on determination_date
             anchor_date = determination_date
 
-        # Check for §5.3 apportionment: if we have both dates and one
-        # is before effective and the other after, flag it
-        if event_date is not None and determination_date >= rec.effective_date:
-            if event_date < rec.effective_date:
-                # The change of circumstances occurred before the effective
-                # date but the determination is after — for event_date-anchored
-                # amendments, this means old text applies (per §5.2).
-                # For determination_date-anchored amendments, new text applies.
-                # If the claim period *spans* the effective date, set the flag.
-                pass  # handled by the anchor_date logic below
+        # Check for §5.3 apportionment: if the query has both dates and one
+        # is before effective and the other after, then the claim period spans
+        # the effective date, meaning apportionment rules apply.
+        if event_date is not None:
+            d1 = min(determination_date, event_date)
+            d2 = max(determination_date, event_date)
+            if d1 < rec.effective_date <= d2:
+                is_apportioned = True
 
         should_apply = anchor_date >= rec.effective_date
 
@@ -258,6 +257,7 @@ def resolve_clause(
             old_text=_old_text,
             new_text=_new_text,
             exists=True,
+            apportionment=is_apportioned,
         )
 
     return ClauseVersion(
@@ -267,4 +267,5 @@ def resolve_clause(
         amendment_paragraph=applied_paragraph,
         ambiguous=False,
         exists=True,
+        apportionment=is_apportioned,
     )

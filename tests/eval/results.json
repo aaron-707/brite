@@ -20,7 +20,7 @@
     "expected_decision": "ANSWER",
     "pass": true,
     "fail_reason": null,
-    "answer": "A recipient is required to report any change in household composition, income, address, or the circumstances of any household member within 14 calendar days of the change occurring, or within 14 calendar days of becoming aware of the change, whichever is later (4.3.2). Failure to report within this timeframe may result in a sanction (10.5.1).",
+    "answer": "A recipient must report any change in household composition, income, address, or the circumstances of any household member within 14 calendar days of the change occurring, or within 14 calendar days of the recipient becoming aware of the change, whichever is later (4.3.2). Failure to report within this timeframe may result in a sanction (10.5.1).",
     "citations": [
       "4.3.2",
       "10.5.1"
@@ -29,12 +29,14 @@
   {
     "id": "Q03",
     "query": "What is the needs figure calculation for a full-time student?",
-    "decision": "REFUSE",
+    "decision": "FLAG_CONFLICT",
     "expected_decision": "FLAG_CONFLICT",
-    "pass": false,
-    "fail_reason": "Decision mismatch: expected FLAG_CONFLICT, got REFUSE",
-    "answer": "Unable to generate a fully verified answer after 2 attempts. Validation errors: Unverified claim: There is a structural conflict regarding this exclusion because the manual references section 5.4 for full-time student calculations, but that section is not provided in the retrieved text.. Please ask a supervisor for assistance.",
-    "citations": []
+    "pass": true,
+    "fail_reason": null,
+    "answer": "The manual states that the needs figure calculation for full-time students is handled differently than for other household members (7.1.3). However, there is a structural conflict regarding this calculation. Clause 7.1.3 directs the reader to section 5.4 for information on full-time students, but section 5.4 does not contain information regarding the needs figure calculation for students. Conflicting provisions: 7.1.3: The needs figure is calculated by reference to household size and composition, except in the case of full-time students (see §5.4), and is subject to the adjustments in §7.3. 5.4.1: Where a household member is in receipt of a care allowance in respect. Because of this dead reference, the specific calculation method for a full-time student is not provided in the manual. This matter should be referred to a supervisor before any determination is made.",
+    "citations": [
+      "7.1.3"
+    ]
   },
   {
     "id": "Q04",
@@ -52,17 +54,12 @@
   {
     "id": "Q05",
     "query": "What happens to an award if a recipient is temporarily absent from the county for 45 days for non-medical reasons?",
-    "decision": "ANSWER",
+    "decision": "REFUSE",
     "expected_decision": "ANSWER",
-    "pass": true,
-    "fail_reason": null,
-    "answer": "A recipient remains eligible while temporarily absent from Calder County for the first 28 days (3.2.1). During this 28-day period, the award amount remains unchanged (5.1.2). If an absence exceeds this period, eligibility ends starting on the first day after the 28-day limit (3.2.4). However, eligibility may continue if the Department determines the recipient intended to return and the extended absence was outside of their control (3.2.4). These rules do not apply to absences for full-time education (3.2.3).",
-    "citations": [
-      "3.2.1",
-      "3.2.3",
-      "3.2.4",
-      "5.1.2"
-    ]
+    "pass": false,
+    "fail_reason": "Decision mismatch: expected ANSWER, got REFUSE",
+    "answer": "Unable to generate a fully verified answer after 2 attempts. Validation errors: Unverified claim: Because the absence is for 45 days and is for non-medical reasons, it exceeds the allowed 28-day period.. Please ask a supervisor for assistance.",
+    "citations": []
   },
   {
     "id": "Q06",
@@ -96,8 +93,9 @@
     "expected_decision": "ANSWER",
     "pass": true,
     "fail_reason": null,
-    "answer": "The maximum deduction from an ongoing award to recover an overpayment is 10 percent of the monthly award (9.3.2). However, if the Department determines that a recipient deliberately misrepresented or failed to disclose a material fact, the recovery rate increases to 20 percent (9.6.1).",
+    "answer": "The maximum deduction from an ongoing award to recover an overpayment is 10 percent of the monthly award (9.3.2). However, if the Department determines that a recipient deliberately misrepresented or failed to disclose a material fact, the recovery rate may be increased to 20 percent (9.6.1). Recovery can be made through these deductions, agreed installments, or other lawful means (9.3.1).",
     "citations": [
+      "9.3.1",
       "9.3.2",
       "9.6.1"
     ]
@@ -109,10 +107,11 @@
     "expected_decision": "ANSWER",
     "pass": true,
     "fail_reason": null,
-    "answer": "A person who has requested a review and is dissatisfied with the outcome may appeal to the Calder County Assistance Appeals Panel (12.1.1). An appeal must be lodged within 30 days of the date of the notification of the review outcome (12.1.2). The provided clauses do not contain information regarding specific support services available to recipients during the appeal process.",
+    "answer": "A person who has requested a review and is dissatisfied with the outcome may appeal to the Calder County Assistance Appeals Panel (12.1.1). An appeal must be lodged within 30 days of the date of the notification of the review outcome (12.1.2). A decision of the Panel is binding on the Department (12.3.1).",
     "citations": [
       "12.1.1",
-      "12.1.2"
+      "12.1.2",
+      "12.3.1"
     ]
   },
   {
@@ -122,7 +121,7 @@
     "expected_decision": "ANSWER",
     "pass": true,
     "fail_reason": null,
-    "answer": "The provided manual does not contain information regarding whether the program covers dental treatment costs. The program provides monthly financial assistance to meet essential living costs and access to associated support services (1.1.1), but specific medical or dental coverage details are not listed. Please contact your district office or supervisor for guidance.",
+    "answer": "The manual does not cover whether dental treatment costs are included in the program. The program provides financial assistance for essential living costs (1.1.1). Please contact your district office or supervisor for guidance.",
     "citations": [
       "1.1.1"
     ]
@@ -160,7 +159,7 @@
     "expected_decision": "FLAG_CONFLICT",
     "pass": true,
     "fail_reason": null,
-    "answer": "The time a recipient has to report a change of circumstances depends on when that change occurred. For changes occurring before 1 March 2026, a recipient must report the change within 10 calendar days (4.3.2). For changes occurring on or after 1 March 2026, the recipient must report the change within 14 calendar days (4.3.2). Conflicting provisions: There is a conflict regarding the reporting timeline. Clause 4.3.2 establishes the operative rule for reporting, requiring 10 days for events before 1 March 2026 and 14 days for events on or after 1 March 2026. However, clause 9.1.4, which governs the downstream consequence of overpayment recovery, references a 30-day period for events before 1 March 2026, creating a discrepancy with the 10-day requirement in 4.3.2. For events on or after 1 March 2026, both clauses align at 14 days. The text of the conflicting clauses is as follows: 4.3.2: [AMBIGUOUS VERSION - DEPENDS ON EVENT DATE] If the change of circumstances occurred before 1 March 2026: 4.3.2 A recipient must report any change in household composition, income, address, or the circumstances of any household member within 10 calendar days of the change occurring, or within 10 calendar days of the recipient becoming aware of the change, whichever is later. If the change of circumstances occurred on or after 1 March 2026: 4.3.2 A recipient must report any change in household composition, income, address, or the circumstances of any household member within 14 calendar days of the change occurring, or within 14 calendar days of the recipient becoming aware of the change, whichever is later. 9.1.4: [AMBIGUOUS VERSION - DEPENDS ON EVENT DATE] If the change of circumstances occurred before 1 March 2026: 9.1.4 Where an overpayment has arisen from a change of circumstances, and the recipient reported the change within the 30 calendar days required under §4.3, no overpayment shall be established in respect of any period before the date on which the Department was in a position to act on the report. If the change of circumstances occurred on or after 1 March 2026: 9.1.4 Where an overpayment has arisen from a change of circumstances, and the recipient reported the change within the 14 calendar days required under §4.3, no overpayment shall be established in respect of any period before the date on which the Department was in a position to act on the report. This matter should be referred to a supervisor before any determination is made.",
+    "answer": "The time a recipient has to report a change of circumstances depends on when that change occurred. For changes occurring before 1 March 2026, a recipient must report the change within 10 calendar days (4.3.2). For changes occurring on or after 1 March 2026, the recipient must report the change within 14 calendar days (4.3.2). Conflicting provisions: There is a conflict regarding the reporting timeline. Clause 4.3.2 establishes the operative rule for reporting, requiring 10 days for events before 1 March 2026 and 14 days for events on or after 1 March 2026. However, clause 9.1.4, which governs the downstream consequence of overpayment recovery, references a 30-day period for events before 1 March 2026, creating a discrepancy with the 10-day requirement in 4.3.2. The text of the conflicting clauses is as follows: 4.3.2: If the change of circumstances occurred before 1 March 2026: A recipient must report any change in household composition, income, address, or the circumstances of any household member within 10 calendar days of the change occurring, or within 10 calendar days of the recipient becoming aware of the change, whichever is later. If the change of circumstances occurred on or after 1 March 2026: A recipient must report any change in household composition, income, address, or the circumstances of any household member within 14 calendar days of the change occurring, or within 14 calendar days of the recipient becoming aware of the change, whichever is later. 9.1.4: If the change of circumstances occurred before 1 March 2026: Where an overpayment has arisen from a change of circumstances, and the recipient reported the change within the 30 calendar days required under §4.3, no overpayment shall be established in respect of any period before the date on which the Department was in a position to act on the report. If the change of circumstances occurred on or after 1 March 2026: Where an overpayment has arisen from a change of circumstances, and the recipient reported the change within the 14 calendar days required under §4.3, no overpayment shall be established in respect of any period before the date on which the Department was in a position to act on the report. This matter should be referred to a supervisor before any determination is made.",
     "citations": [
       "4.3.2",
       "9.1.4"
@@ -173,9 +172,10 @@
     "expected_decision": "ANSWER",
     "pass": true,
     "fail_reason": null,
-    "answer": "The policy manual does not explicitly state that a sanction cannot be imposed if the unreported change would have increased the award. Under the current rules, the Department may impose a sanction if a recipient fails to report a change of circumstances within 10 calendar days (10.5.1). A change of circumstances is defined as any change in facts that impacts eligibility or the award amount (1.4.8). Failure to report within the required timeframe may result in a sanction (4.3.4). A sanction consists of a 20 percent reduction of the monthly award for a set period (10.5.2). There are specific exemptions where a sanction must not be imposed, such as when the household includes a child under age 2 or the recipient requires assistance with daily living activities (10.5.3). The provided clauses do not address whether an increase in the award amount serves as a defense against a sanction for failing to report.",
+    "answer": "The policy manual does not explicitly state that a sanction cannot be imposed if the unreported change would have increased the award. Under the current rules, the Department may impose a sanction if a recipient fails to report a change of circumstances within 10 calendar days (1.4.8, 4.3.2, 10.5.1). A sanction is defined as a 20 percent reduction of the monthly award for a set period (10.5.2). While there are specific exemptions where a sanction must not be imposed, such as when the household includes a child under age 2 or the recipient requires assistance with daily living activities, the potential for an increased award is not listed as an exemption (10.5.3). Failure to report within the required timeframe may result in a sanction (4.3.4).",
     "citations": [
       "1.4.8",
+      "4.3.2",
       "4.3.4",
       "10.5.1",
       "10.5.2",
@@ -189,7 +189,7 @@
     "expected_decision": "ANSWER",
     "pass": true,
     "fail_reason": null,
-    "answer": "No, a sanction must not be imposed for a failure to report if the change of circumstances would have resulted in an increased award (10.5.3A). A change of circumstances is defined as any change in the facts used to determine eligibility or the award amount, such as changes to income, address, or household composition (1.4.8). While recipients are generally required to report these changes within 10 calendar days if the change occurred before 1 March 2026, or within 14 calendar days if the change occurred on or after 1 March 2026 (4.3.2), the specific prohibition against sanctioning when the award would increase takes precedence in these instances.",
+    "answer": "No, a sanction cannot be imposed for a failure to report if the change of circumstances would have resulted in an increase to the recipient's award (10.5.3A). A change of circumstances is defined as any change in the facts used to determine eligibility or the award amount, such as changes to income, address, or household composition (1.4.8). While recipients are generally required to report these changes within 10 calendar days if the change occurred before 1 March 2026, or within 14 calendar days if the change occurred on or after 1 March 2026 (4.3.2), the specific prohibition against sanctioning for changes that increase an award takes precedence (10.5.3A).",
     "citations": [
       "1.4.8",
       "4.3.2",
@@ -203,7 +203,7 @@
     "expected_decision": "FLAG_CONFLICT",
     "pass": true,
     "fail_reason": null,
-    "answer": "There is a conflict regarding the reporting deadline for a change of circumstances. Clause 4.3.2 states that a recipient must report changes within 10 calendar days. However, clause 9.1.4 references a 30 calendar day requirement. The 10-day period in 4.3.2 serves as the operative rule for the recipient's obligation to report. The 30-day period in 9.1.4 serves as the downstream consequence regarding the establishment of an overpayment. Conflicting provisions: 4.3.2: A recipient must report any change in household composition, income, address, or the circumstances of any household member within 10 calendar days of the change occurring, or within 10 calendar days of the recipient becoming aware of the change, whichever is later. 9.1.4: Where an overpayment has arisen from a change of circumstances, and the recipient reported the change within the 30 calendar days required under 4.3, no overpayment shall be established in respect of any period before the date on which the Department was in a position to act on the report. This matter should be referred to a supervisor before any determination is made.",
+    "answer": "There is a conflict regarding the number of days a recipient has to report a change of circumstances. Clause 4.3.2 states that a recipient must report changes within 10 calendar days. However, clause 9.1.4 references a 30 calendar day period for reporting changes under section 4.3. The 10-day requirement in 4.3.2 serves as the operative rule for the recipient's obligation to report. The 30-day reference in 9.1.4 serves as a downstream consequence regarding the establishment of overpayments. Conflicting provisions: 4.3.2: A recipient must report any change in household composition, income, address, or the circumstances of any household member within 10 calendar days of the change occurring, or within 10 calendar days of the recipient becoming aware of the change, whichever is later. 9.1.4: Where an overpayment has arisen from a change of circumstances, and the recipient reported the change within the 30 calendar days required under 4.3, no overpayment shall be established in respect of any period before the date on which the Department was in a position to act on the report. This matter should be referred to a supervisor before any determination is made.",
     "citations": [
       "4.3.2",
       "9.1.4"
@@ -216,7 +216,7 @@
     "expected_decision": "FLAG_CONFLICT",
     "pass": true,
     "fail_reason": null,
-    "answer": "The time a recipient has to report a change of circumstances depends on when that change occurred. For changes occurring before 1 March 2026, the recipient must report the change within 10 calendar days (4.3.2). For changes occurring on or after 1 March 2026, the recipient must report the change within 14 calendar days (4.3.2). Conflicting provisions: There is a conflict regarding the reporting timeline referenced in overpayment rules. Clause 4.3.2 sets the reporting obligation at 10 or 14 days depending on the date. However, clause 9.1.4 references a 30-day period for reporting requirements for changes occurring before 1 March 2026. Clause 4.3.2 serves as the operative rule for the reporting obligation, while clause 9.1.4 serves as the downstream consequence regarding overpayment recovery. This matter should be referred to a supervisor before any determination is made.",
+    "answer": "The time a recipient has to report a change of circumstances depends on when that change occurred. For changes occurring before 1 March 2026, the recipient must report the change within 10 calendar days (4.3.2). For changes occurring on or after 1 March 2026, the recipient must report the change within 14 calendar days (4.3.2). Conflicting provisions: There is a conflict regarding the reporting timeline referenced in overpayment rules. Clause 4.3.2 establishes the reporting obligation, while clause 9.1.4 references a 30-day period for pre-March 2026 events as a downstream consequence for overpayment recovery. Verbatim text of 4.3.2: [AMBIGUOUS VERSION - DEPENDS ON EVENT DATE] If the change of circumstances occurred before 1 March 2026: 4.3.2 A recipient must report any change in household composition, income, address, or the circumstances of any household member within 10 calendar days of the change occurring, or within 10 calendar days of the recipient becoming aware of the change, whichever is later. If the change of circumstances occurred on or after 1 March 2026: 4.3.2 A recipient must report any change in household composition, income, address, or the circumstances of any household member within 14 calendar days of the change occurring, or within 14 calendar days of the recipient becoming aware of the change, whichever is later. Verbatim text of 9.1.4: [AMBIGUOUS VERSION - DEPENDS ON EVENT DATE] If the change of circumstances occurred before 1 March 2026: 9.1.4 Where an overpayment has arisen from a change of circumstances, and the recipient reported the change within the 30 calendar days required under 4.3, no overpayment shall be established in respect of any period before the date on which the Department was in a position to act on the report. If the change of circumstances occurred on or after 1 March 2026: 9.1.4 Where an overpayment has arisen from a change of circumstances, and the recipient reported the change within the 14 calendar days required under 4.3, no overpayment shall be established in respect of any period before the date on which the Department was in a position to act on the report. This matter should be referred to a supervisor before any determination is made.",
     "citations": [
       "4.3.2",
       "9.1.4"
@@ -229,10 +229,25 @@
     "expected_decision": "FLAG_CONFLICT",
     "pass": true,
     "fail_reason": null,
-    "answer": "There is a conflict regarding the reporting deadline for a change of circumstances. Clause 4.3.2 states that a recipient must report changes within 10 calendar days. However, clause 9.1.4 references a 30 calendar day period for reporting under 4.3. These values are inconsistent. Clause 4.3.2 is the operative rule regarding the recipient's obligation to report changes, while clause 9.1.4 is a downstream consequence related to the establishment of overpayments. Conflicting provisions: 4.3.2: A recipient must report any change in household composition, income, address, or the circumstances of any household member within 10 calendar days of the change occurring, or within 10 calendar days of the recipient becoming aware of the change, whichever is later. 9.1.4: Where an overpayment has arisen from a change of circumstances, and the recipient reported the change within the 30 calendar days required under 4.3, no overpayment shall be established in respect of any period before the date on which the Department was in a position to act on the report. This matter should be referred to a supervisor before any determination is made.",
+    "answer": "There is a conflict regarding the reporting deadline for a change of circumstances. Clause 4.3.2 states that a recipient must report changes within 10 calendar days. However, clause 9.1.4 references a 30 calendar day requirement under section 4.3. These values are inconsistent. Clause 4.3.2 is the operative rule regarding the recipient's obligation to report changes. Clause 9.1.4 is a downstream consequence regarding the establishment of overpayments. Conflicting provisions: 4.3.2: A recipient must report any change in household composition, income, address, or the circumstances of any household member within 10 calendar days of the change occurring, or within 10 calendar days of the recipient becoming aware of the change, whichever is later. 9.1.4: Where an overpayment has arisen from a change of circumstances, and the recipient reported the change within the 30 calendar days required under §4.3, no overpayment shall be established in respect of any period before the date on which the Department was in a position to act on the report. This matter should be referred to a supervisor before any determination is made.",
     "citations": [
       "4.3.2",
       "9.1.4"
+    ]
+  },
+  {
+    "id": "Q19",
+    "query": "what is the earnings disregard amount for a claim covering 15 February to 15 March 2026",
+    "decision": "ANSWER",
+    "expected_decision": "ANSWER",
+    "pass": true,
+    "fail_reason": null,
+    "answer": "The earnings disregard for household employment is $120 per month (6.4.1). This disregard applies once per household (6.4.2). Because the claim period of 15 February to 15 March 2026 spans the 1 March 2026 amendment boundary, the applicable figures are those in force on each day of the period (5.3). Consequently, the award must be apportioned across the two rate periods by reference to the number of days (7.4.3).",
+    "citations": [
+      "5.3",
+      "6.4.1",
+      "6.4.2",
+      "7.4.3"
     ]
   }
 ]

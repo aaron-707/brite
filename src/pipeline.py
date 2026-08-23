@@ -305,6 +305,33 @@ class Pipeline:
         # — no modifications to Gate/Synthesizer internals required.
         patched_results: list[RetrievalResult] = []
         has_ambiguous = False
+        has_apportionment = False
+
+        # Set apportionment if the query dates span 1 March 2026, or if any two
+        # dates extracted directly from the question text span that boundary.
+        if determination_date is not None and event_date is not None:
+            d1 = min(determination_date, event_date)
+            d2 = max(determination_date, event_date)
+            if d1 < date(2026, 3, 1) <= d2:
+                has_apportionment = True
+
+        all_candidates = []
+        for m in _ISO_DATE_RE.finditer(question):
+            try:
+                all_candidates.append(date(int(m.group(1)), int(m.group(2)), int(m.group(3))))
+            except ValueError:
+                pass
+        for m in _NAMED_DATE_RE.finditer(question):
+            d = _parse_named_date(m)
+            if d:
+                all_candidates.append(d)
+
+        if len(all_candidates) >= 2:
+            d_before = any(d < date(2026, 3, 1) for d in all_candidates)
+            d_after = any(d >= date(2026, 3, 1) for d in all_candidates)
+            if d_before and d_after:
+                has_apportionment = True
+
         for result in results:
             if result.clause_id in self._amended_ids:
                 try:
@@ -320,6 +347,8 @@ class Pipeline:
                         # drop it entirely — don't let pre-amendment synthetic
                         # text leak into Gate or Synthesizer.
                         continue
+                    if cv.apportionment:
+                        has_apportionment = True
                     if cv.ambiguous:
                         has_ambiguous = True
                         result.clause_text = (
@@ -335,6 +364,33 @@ class Pipeline:
                     pass  # shouldn't happen; defensive
             patched_results.append(result)
         results = patched_results
+
+        if has_apportionment:
+            # Inject §5.3 (from amendment) and §7.4.3 (from base manual) as retrieved documents
+            # so the synthesizer and citation validator can verify references to them.
+            p53_text = (
+                "**5.3** Where a claim relates to a period spanning 1 March 2026, the applicable "
+                "figures are those in force on each day of the period, and the award is apportioned "
+                "accordingly under §7.4.3."
+            )
+            p743_text = (
+                "**7.4.3** An award of less than one month's duration is apportioned by reference "
+                "to the number of days."
+            )
+            results.append(RetrievalResult(
+                clause_id="5.3",
+                clause_text=p53_text,
+                score=1.0,
+                bm25_rank=1,
+                tfidf_rank=1
+            ))
+            results.append(RetrievalResult(
+                clause_id="7.4.3",
+                clause_text=p743_text,
+                score=1.0,
+                bm25_rank=1,
+                tfidf_rank=1
+            ))
 
         # Step 2: Gate
         gate_decision = self.gate.evaluate(expanded_question, results, self.clause_index)
@@ -354,14 +410,26 @@ class Pipeline:
             gate_decision.conflicts = _dedup_conflicts(gate_decision.conflicts)
 
         # Step 3 & 4: Synthesize + Validate (with retry)
-        ambiguity_instruction = (
-            "IMPORTANT: The retrieved context contains ambiguous clauses where the applicable version "
-            "depends on when the change of circumstances occurred (before or on/after 1 March 2026). "
-            "You must state plainly that the answer depends on when the change of circumstances occurred, "
-            "provide both values with that condition clearly attached, and do not present either value "
-            "as the sole answer."
-        ) if has_ambiguous else None
-        correction: str | None = ambiguity_instruction
+        instructions = []
+        if has_ambiguous:
+            instructions.append(
+                "IMPORTANT: The retrieved context contains ambiguous clauses where the applicable version "
+                "depends on when the change of circumstances occurred (before or on/after 1 March 2026). "
+                "You must state plainly that the answer depends on when the change of circumstances occurred, "
+                "provide both values with that condition clearly attached, and do not present either value "
+                "as the sole answer."
+            )
+        if has_apportionment:
+            instructions.append(
+                "IMPORTANT: The claim/event period spans the 1 March 2026 amendment boundary. "
+                "Under §5.3 and §7.4.3, you must explicitly state in the answer that the claim spans the amendment boundary, "
+                "cite §5.3 and §7.4.3, and say that the award must be apportioned across the two rate periods. "
+                "Do not attempt to calculate or present a specific prorated/apportioned/calculated figure, "
+                "as that arithmetic is out of scope for this system."
+            )
+
+        initial_instruction = "\n\n".join(instructions) if instructions else None
+        correction: str | None = initial_instruction
         last_output: SynthesizerOutput | None = None
         last_validation: ValidationResult | None = None
 
@@ -403,8 +471,8 @@ class Pipeline:
                 f"Remember: only cite clause ids from the provided clauses, "
                 f"and every factual claim must be supported by a cited clause."
             )
-            if ambiguity_instruction:
-                correction = ambiguity_instruction + "\n\n" + correction
+            if initial_instruction:
+                correction = initial_instruction + "\n\n" + correction
 
         # All retries exhausted — return a REFUSE-style output
         error_summary = "; ".join(last_validation.errors) if last_validation else "Unknown"
