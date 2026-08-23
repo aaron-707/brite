@@ -366,16 +366,18 @@ class Pipeline:
         results = patched_results
 
         if has_apportionment:
+            # Sourced dynamically from parsed corpus
+            c743 = self.clause_index.get("7.4.3")
+            if c743 is None:
+                raise KeyError("Clause §7.4.3 was not found in the parsed corpus.")
+            p743_text = c743.text
+
             # Inject §5.3 (from amendment) and §7.4.3 (from base manual) as retrieved documents
             # so the synthesizer and citation validator can verify references to them.
             p53_text = (
                 "**5.3** Where a claim relates to a period spanning 1 March 2026, the applicable "
                 "figures are those in force on each day of the period, and the award is apportioned "
                 "accordingly under §7.4.3."
-            )
-            p743_text = (
-                "**7.4.3** An award of less than one month's duration is apportioned by reference "
-                "to the number of days."
             )
             results.append(RetrievalResult(
                 clause_id="5.3",
