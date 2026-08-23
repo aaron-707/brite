@@ -48,16 +48,12 @@ You must follow these rules without exception:
 3. CONFLICT HANDLING (FLAG_CONFLICT Decisions)
 When the question is flagged with a conflict, you must:
 - Describe the conflict clearly.
-- If it is a numeric contradiction between two clauses (e.g. different timeframes like 10 days vs 30 days):
-  (a) Identify both clause numbers that disagree (e.g. 4.3.2 and 9.1.4) and detail the exact discrepancy.
-  (b) Explicitly state which is the operative rule/obligation and which is the downstream consequence (for example, §4.3.2 is the operative rule/obligation requiring reporting within 10 days, while §9.1.4 is the downstream consequence related to recovering overpayments within 30 days), without silently resolving which one "wins."
-- If it is a structural reference issue or dead reference (e.g. a clause referencing a section that is topically unrelated or missing):
-  (a) State clearly what is broken and name the target clause/section that is referenced.
-- For all conflicts:
-  (a) Under a "Conflicting provisions" heading, print the full text of the conflicting or referencing clauses verbatim.
-  (b) State what is known from the clauses that are not in conflict.
-  (c) Do not resolve the conflict. Do not pick one side or speculate.
-  (d) End your answer with this exact sentence: "This matter should be referred to a supervisor before any determination is made."
+- For any numeric contradiction (such as 10 days vs 30 days): you MUST identify both clause numbers (e.g. 4.3.2 and 9.1.4), detail the exact discrepancy, and explain that one clause (e.g. §4.3.2) is the "operative rule" or obligation, while the other clause (e.g. §9.1.4) is the "downstream consequence" (such as overpayment recovery), without silently resolving which one "wins". You must use these exact terms: "operative rule" and "downstream consequence".
+- For any structural or dead reference conflict: state clearly what is broken and name the target clause/section that is referenced.
+- Under a "Conflicting provisions" heading, print the full text of the conflicting or referencing clauses verbatim.
+- State what is known from the clauses that are not in conflict.
+- Do not resolve the conflict. Do not pick one side or speculate.
+- End your answer with this exact sentence: "This matter should be referred to a supervisor before any determination is made."
 
 4. REFUSAL (Uncovered Matters)
 If the retrieved clauses do not address the caseworker's question at all:
@@ -162,7 +158,7 @@ class Synthesizer:
             conflict_details = []
             for conflict in gate_decision.conflicts:
                 conflict_details.append(f"- {conflict}")
-                cids = re.findall(r"(\d+\.\d+\.\d+)", conflict)
+                cids = re.findall(r"(\d+\.\d+(?:\.\d+)?)", conflict)
                 for cid in cids:
                     for res in clauses:
                         if res.clause_id == cid:
@@ -285,8 +281,15 @@ class Synthesizer:
             # The response should be JSON due to responseMimeType
             parsed = json.loads(text)
             answer = parsed.get("answer", "")
-            citations = parsed.get("citations", [])
-
+            raw_citations = parsed.get("citations", [])
+            citations = []
+            cite_re = re.compile(r"(\d+\.\d+(?:\.\d+)?)")
+            for c in raw_citations:
+                match = cite_re.search(str(c))
+                if match:
+                    citations.append(match.group(1))
+            citations = sorted(list(set(citations)))
+            
             return SynthesizerOutput(
                 answer=answer,
                 cited_clause_ids=citations,
@@ -301,7 +304,7 @@ class Synthesizer:
                 pass
 
             # Try to extract citations from raw text
-            cite_re = re.compile(r"§?(\d+\.\d+\.\d+)")
+            cite_re = re.compile(r"§?(\d+\.\d+(?:\.\d+)?)")
             found = cite_re.findall(text)
 
             return SynthesizerOutput(

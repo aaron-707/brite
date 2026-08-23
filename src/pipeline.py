@@ -212,10 +212,9 @@ def main() -> None:
     print(f"Decision: {result.decision}")
     if result.gate_decision.conflicts:
         print(f"Conflicts: {result.gate_decision.conflicts}")
-        import re
         cids = []
         for conflict in result.gate_decision.conflicts:
-            cids.extend(re.findall(r"(\d+\.\d+\.\d+)", conflict))
+            cids.extend(re.findall(r"(\d+\.\d+(?:\.\d+)?)", conflict))
         cids = sorted(list(set(cids)))
         if cids:
             print("\nConflicting provisions:")
