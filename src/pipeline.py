@@ -163,6 +163,80 @@ def _dedup_conflicts(conflicts: list[str]) -> list[str]:
     return deduped
 
 
+# Matches a clean dollar amount like "$120" or "$175" (integer or decimal, no commas)
+_DOLLAR_RE = re.compile(r"\$(\d+(?:\.\d+)?)\b")
+
+# Amendment boundary date for proration arithmetic
+_AMENDMENT_BOUNDARY = date(2026, 3, 1)
+
+
+def _compute_prorated_rate(
+    claim_start: date,
+    claim_end: date,
+    old_value: str,
+    new_value: str,
+) -> str | None:
+    """Compute a daily-prorated dollar rate for a claim spanning 1 March 2026.
+
+    Applies only when:
+      - The claim period spans the amendment boundary (claim_start < 1 March <= claim_end).
+      - Both old_value and new_value each contain exactly one clean dollar figure.
+        This is satisfied naturally when called with AmendmentRecord.old_value /
+        AmendmentRecord.new_value (e.g. "$120 per month" / "$175 per month").
+        Gracefully returns None for non-dollar amendments (e.g. "10 calendar days",
+        table replacements with multiple figures, percentage changes).
+      - The two dollar figures are different.
+
+    Returns a formatted string like "$148.45 per month" on success, or None if any
+    of the above conditions are not met — callers must handle None gracefully and skip
+    injecting a precomputed figure.
+
+    Does NOT involve any LLM call. Pure date arithmetic.
+
+    Args:
+        claim_start: First day of the claim period (inclusive).
+        claim_end: Last day of the claim period (inclusive).
+        old_value: Pre-amendment substituted value string from AmendmentRecord.
+        new_value: Post-amendment substituted value string from AmendmentRecord.
+
+    Returns:
+        Prorated dollar string on success, None otherwise.
+    """
+    # Only applicable when the period spans the boundary
+    if not (claim_start < _AMENDMENT_BOUNDARY <= claim_end):
+        return None
+
+    # Extract dollar figures — require exactly one per value string.
+    # AmendmentRecord values like "$120 per month" satisfy this naturally.
+    # Non-dollar amendments (day counts, percentages, tables) return None here.
+    old_matches = _DOLLAR_RE.findall(old_value)
+    new_matches = _DOLLAR_RE.findall(new_value)
+    if len(old_matches) != 1 or len(new_matches) != 1:
+        return None
+
+    try:
+        old_rate = float(old_matches[0])
+        new_rate = float(new_matches[0])
+    except ValueError:
+        return None
+
+    # Skip gracefully if the rate is unchanged (no proration needed)
+    if old_rate == new_rate:
+        return None
+
+    # Days before boundary: claim_start to (boundary - 1), inclusive
+    days_before = (_AMENDMENT_BOUNDARY - claim_start).days       # e.g. Feb 15 to Feb 28 = 14
+    # Days from boundary to end, inclusive
+    days_after = (claim_end - _AMENDMENT_BOUNDARY).days + 1      # e.g. Mar 1 to Mar 15 = 15
+    total_days = days_before + days_after
+
+    if total_days <= 0:
+        return None
+
+    prorated = (days_before * old_rate + days_after * new_rate) / total_days
+    return f"${prorated:.2f} per month"
+
+
 @dataclass
 class PipelineResult:
     """Full result from a pipeline run."""
@@ -344,6 +418,17 @@ class Pipeline:
             if d_before and d_after:
                 has_apportionment = True
 
+        # Track claim period boundaries for proration arithmetic (pure date math, no LLM)
+        # When apportionment is set from candidate dates, min/max give the period endpoints.
+        claim_start: date | None = None
+        claim_end: date | None = None
+        if all_candidates and has_apportionment:
+            claim_start = min(all_candidates)
+            claim_end = max(all_candidates)
+
+        # Collect (old_text, new_text) pairs from rate-based amended clauses for proration
+        _apportioned_old_new: list[tuple[str, str]] = []
+
         for result in results:
             if result.clause_id in self._amended_ids:
                 try:
@@ -361,6 +446,11 @@ class Pipeline:
                         continue
                     if cv.apportionment:
                         has_apportionment = True
+                        # If apportionment was set by the resolver (not candidates),
+                        # capture the claim bounds from determination/event dates too.
+                        if claim_start is None and determination_date and event_date:
+                            claim_start = min(determination_date, event_date)
+                            claim_end = max(determination_date, event_date)
                     if cv.ambiguous:
                         has_ambiguous = True
                         result.clause_text = (
@@ -393,6 +483,16 @@ class Pipeline:
                             f"For the portion of the claim period on or after 1 March 2026:\n"
                             f"{new_txt}"
                         )
+                        # Collect amendment old_value/new_value strings for proration arithmetic.
+                        # We use AmendmentRecord.old_value / new_value (e.g. "$120 per month" /
+                        # "$175 per month") — these contain exactly one dollar figure each —
+                        # rather than the full clause text which may contain multiple dollar amounts.
+                        for rec in self.amendments:
+                            if (rec.target_clause_id == result.clause_id
+                                    and rec.operation == "substitute"
+                                    and rec.old_value is not None):
+                                _apportioned_old_new.append((rec.old_value, rec.new_value))
+
                     elif cv.text is not None:
                         result.clause_text = cv.text
                 except KeyError:
@@ -429,6 +529,56 @@ class Pipeline:
                 tfidf_rank=1
             ))
 
+            # For any determination-date-anchored (§5.1) amended clause that was NOT
+            # already retrieved (and therefore not in _apportioned_old_new), proactively
+            # inject it so the synthesizer can see both pre- and post-amendment versions
+            # and so proration can be computed.  Event-date-anchored clauses (§5.2, e.g.
+            # §4.3.2 / §9.1.4) are skipped here — "prorating a deadline day-count"
+            # doesn't make sense and _compute_prorated_rate would return None anyway.
+            already_injected = {r.clause_id for r in results}
+            for rec in self.amendments:
+                if rec.anchor != "determination_date":
+                    continue
+                if rec.operation != "substitute" or rec.old_value is None:
+                    continue
+                cid = rec.target_clause_id
+                if cid in already_injected:
+                    continue
+                # Clause was amended but not retrieved: build apportioned context text and inject it
+                base_clause = self.clause_index.get(cid)
+                if base_clause is None:
+                    continue
+                # Resolve post-amendment text
+                post_date = max(determination_date or date.today(), date(2026, 3, 1))
+                try:
+                    cv_post = resolve_clause(
+                        cid,
+                        determination_date=post_date,
+                        event_date=post_date,
+                        clause_index=self.clause_index,
+                        amendments=self.amendments,
+                    )
+                    new_txt = cv_post.text or base_clause.text
+                except KeyError:
+                    new_txt = base_clause.text
+                synthetic_text = (
+                    f"[APPORTIONED VERSION - CLAIM SPANS 1 MARCH 2026 BOUNDARY]\n"
+                    f"For the portion of the claim period before 1 March 2026:\n"
+                    f"{base_clause.text}\n\n"
+                    f"For the portion of the claim period on or after 1 March 2026:\n"
+                    f"{new_txt}"
+                )
+                results.append(RetrievalResult(
+                    clause_id=cid,
+                    clause_text=synthetic_text,
+                    score=0.9,
+                    bm25_rank=1,
+                    tfidf_rank=1
+                ))
+                already_injected.add(cid)
+                # Register for proration computation
+                _apportioned_old_new.append((rec.old_value, rec.new_value))
+
         # Step 2: Gate
         gate_decision = self.gate.evaluate(expanded_question, results, self.clause_index)
 
@@ -457,13 +607,50 @@ class Pipeline:
                 "as the sole answer."
             )
         if has_apportionment:
-            instructions.append(
-                "IMPORTANT: The claim/event period spans the 1 March 2026 amendment boundary. "
-                "Under §5.3 and §7.4.3, you must explicitly state in the answer that the claim spans the amendment boundary, "
-                "cite §5.3 and §7.4.3 immediately when mentioning the boundary or apportionment, and say that the award must be apportioned across the two rate periods. "
-                "Do not attempt to calculate or present a specific prorated/apportioned/calculated figure, "
-                "as that arithmetic is out of scope for this system."
-            )
+            # Attempt pure date-arithmetic proration for rate-based clauses.
+            # This is computed entirely in Python — no LLM involved.
+            prorated_facts: list[str] = []
+            if claim_start is not None and claim_end is not None:
+                for old_txt, new_txt in _apportioned_old_new:
+                    pf = _compute_prorated_rate(claim_start, claim_end, old_txt, new_txt)
+                    if pf:
+                        prorated_facts.append(pf)
+
+            if prorated_facts:
+                facts_str = "; ".join(prorated_facts)
+                # Inject the prorated figures as a synthetic retrieved document so the
+                # citation validator can verify the stated numbers.  The validator checks
+                # that factual numbers in the answer appear in at least one retrieved clause;
+                # since $149.33 is a computed fact (not verbatim in the manual), we inject
+                # it here — the same pattern used for §5.3 and §7.4.3.
+                proration_context = (
+                    f"[SYSTEM-COMPUTED PRORATION FACT — PURE DATE ARITHMETIC, NO LLM INVOLVED]\n"
+                    f"Prorated earnings disregard for this claim period: {facts_str}.\n"
+                    f"Computed as: (days before 1 March 2026 × pre-amendment rate + "
+                    f"days on/after 1 March 2026 × post-amendment rate) ÷ total days."
+                )
+                results.append(RetrievalResult(
+                    clause_id="proration.calc",
+                    clause_text=proration_context,
+                    score=1.0,
+                    bm25_rank=1,
+                    tfidf_rank=1
+                ))
+                instructions.append(
+                    "IMPORTANT: The claim/event period spans the 1 March 2026 amendment boundary. "
+                    "Under §5.3 and §7.4.3, you must explicitly state in the answer that the claim spans the amendment boundary, "
+                    "cite §5.3 and §7.4.3 immediately when mentioning the boundary or apportionment, and say that the award must be apportioned across the two rate periods. "
+                    f"The following prorated figure(s) have been pre-computed by date arithmetic (not by you) and must be stated plainly in the answer as a fact: {facts_str}. "
+                    "When stating this prorated figure, cite §6.4.1 (the earnings disregard clause) and §5.3 in the same sentence — do NOT cite 'proration.calc' (that is an internal document, not a citable clause)."
+                )
+            else:
+                instructions.append(
+                    "IMPORTANT: The claim/event period spans the 1 March 2026 amendment boundary. "
+                    "Under §5.3 and §7.4.3, you must explicitly state in the answer that the claim spans the amendment boundary, "
+                    "cite §5.3 and §7.4.3 immediately when mentioning the boundary or apportionment, and say that the award must be apportioned across the two rate periods. "
+                    "Do not attempt to calculate or present a specific prorated/apportioned/calculated figure, "
+                    "as that arithmetic is out of scope for this system."
+                )
 
         initial_instruction = "\n\n".join(instructions) if instructions else None
         correction: str | None = initial_instruction

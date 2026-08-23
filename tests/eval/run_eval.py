@@ -127,6 +127,17 @@ QUESTIONS = [
         "expected_decision": "ANSWER",
         "notes": "Tests claim period spanning 1 March 2026 boundary (apportionment under §5.3 and §7.4.3)."
     },
+    {
+        "id": "Q20",
+        "query": "What is the earnings disregard for a claim covering the period 2026-02-01 to 2026-04-01?",
+        "expected_decision": "ANSWER",
+        "notes": (
+            "Tests pre-computed proration injection. Claim: 1 Feb to 1 Apr 2026. "
+            "28 days before 1 March (at $120) + 32 days on/after (at $175) = 60 days total. "
+            "Prorated = (28*120 + 32*175)/60 = 8960/60 = $149.33 per month. "
+            "Pipeline must state $149.33 in the answer, still citing §5.3, §7.4.3, §6.4.1."
+        )
+    },
 ]
 
 
@@ -142,8 +153,8 @@ def run_evaluation() -> None:
     start_time = time.time()
 
     for i, q in enumerate(QUESTIONS):
-        # check total timeout (5 minutes)
-        if time.time() - start_time > 300:
+        # check total timeout (15 minutes — 20 questions × ~30s average = ~600s, plus buffer)
+        if time.time() - start_time > 900:
             print(f"\nHarness timeout exceeded. Skipping remaining {len(QUESTIONS) - i} questions.")
             for remaining_q in QUESTIONS[i:]:
                 failed_count += 1
@@ -160,14 +171,22 @@ def run_evaluation() -> None:
             break
 
         print(f"\nRunning {q['id']}: {q['query']}")
+        api_error_sleep = 5  # default sleep; extended on rate-limit hits
         try:
             det_date = q.get("determination_date")
             evt_date = q.get("event_date")
             result = pipeline.run(q["query"], determination_date=det_date, event_date=evt_date)
             
+            # Detect swallowed API rate limit/error in pipeline result and set 30s backoff sleep
+            if result.decision == "REFUSE" and ("HTTP error 429" in result.answer or "HTTP error 503" in result.answer or "temporarily unavailable" in result.answer):
+                api_error_sleep = 30
+                print(f"  -> Detected API error/429 in answer, sleeping {api_error_sleep}s before next question...")
+
+
             # PASS/FAIL Criteria
             passed = True
             fail_reason = None
+
             
             # Check decision match
             # Note special condition for Q10: REFUSE is acceptable if accompanied by escalation info
@@ -240,6 +259,18 @@ def run_evaluation() -> None:
                     elif "apportion" not in result.answer.lower():
                         passed = False
                         fail_reason = "Answer must state that the award must be apportioned in Q19"
+                elif q["id"] == "Q20":
+                    # Hand-verified: (28*120 + 32*175)/60 = 8960/60 = $149.33
+                    if "5.3" not in result.citations or "7.4.3" not in result.citations or "6.4.1" not in result.citations:
+                        passed = False
+                        fail_reason = "Required citations (5.3, 7.4.3, 6.4.1) not present in Q20"
+                    elif "149.33" not in result.answer:
+                        passed = False
+                        fail_reason = "Pre-computed prorated figure $149.33 not present in Q20 answer"
+                    elif "apportion" not in result.answer.lower():
+                        passed = False
+                        fail_reason = "Answer must state that the award must be apportioned in Q20"
+
             
             if passed:
                 passed_count += 1
@@ -275,6 +306,11 @@ def run_evaluation() -> None:
                 "answer": "",
                 "citations": [],
             })
+            # Back off longer after HTTP errors to let rate-limit window reset
+            if "429" in str(e) or "503" in str(e):
+                api_error_sleep = 30
+                print(f"  -> Rate-limit/503 error, sleeping {api_error_sleep}s before next question...")
+
         except Exception as e:
             failed_count += 1
             print(f"[FAIL] - Pipeline errored: {str(e)}")
@@ -289,8 +325,9 @@ def run_evaluation() -> None:
                 "citations": [],
             })
         
-        # Sleep to prevent hitting Gemini rate limits (15 RPM)
-        time.sleep(5)
+        # Sleep to prevent hitting Gemini rate limits (15 RPM).
+        # Use a longer sleep after 429/503 errors to reset the rate-limit window.
+        time.sleep(api_error_sleep)
 
     # Ensure tests/eval directory exists
     output_path = Path("tests/eval/results.json")

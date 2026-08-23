@@ -234,6 +234,8 @@ class Synthesizer:
 
         except (requests.exceptions.Timeout,
                 requests.exceptions.ConnectionError) as e:
+            import sys
+            print(f"DEBUG Synth Error: Timeout/ConnectionError: {str(e)}", file=sys.stderr)
             return {
                 "decision": "REFUSE",
                 "answer": "The system is temporarily unavailable. "
@@ -242,6 +244,8 @@ class Synthesizer:
                 "conflicts": []
             }
         except requests.exceptions.HTTPError as e:
+            import sys
+            print(f"DEBUG Synth Error: HTTPError: {str(e)}", file=sys.stderr)
             return {
                 "decision": "REFUSE",
                 "answer": f"The system is temporarily unavailable (HTTP error {e.response.status_code if e.response is not None else 'unknown'}). "
@@ -249,6 +253,7 @@ class Synthesizer:
                 "citations": [],
                 "conflicts": []
             }
+
         except ValueError as e:
             return {
                 "decision": "REFUSE",

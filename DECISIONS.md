@@ -218,9 +218,9 @@ All API failures (HTTP 500, malformed JSON, empty response, timeout, repeated
 failure propagates as an unhandled exception to the CLI or eval harness. Backoff
 is capped at 16 seconds per retry with a maximum of 3 attempts.
 
-## 5. Evaluation Results (19-question set, all fixes applied)
+## 5. Evaluation Results (20-question set, all fixes applied)
 
-19/19 PASS.
+20/20 PASS.
 
 * Q01 PASS — ANSWER, §2.3.1 cited. Standard eligibility query.
 * Q02 PASS — FLAG_CONFLICT, §4.3.2 (10 days) vs §9.1.4 (30 days) surfaced, escalation instruction present.
@@ -241,6 +241,7 @@ is capped at 16 seconds per retry with a maximum of 3 attempts.
 * Q17 PASS — ANSWER, post-March reporting timeline under §4.3.2 (14 calendar days).
 * Q18 PASS — ANSWER, pre-March reporting timeline under §4.3.2 (10 calendar days).
 * Q19 PASS — ANSWER, boundary-spanning proration resolved correctly, citing §5.3, §7.4.3, §6.4.1.
+* Q20 PASS — ANSWER, pre-computed prorated earnings disregard of $149.33 per month for 1 Feb–1 Apr 2026 claim stated, citing §6.4.1, §5.3, §7.4.3. Hand-verified: (28×$120 + 32×$175) / 60 = $149.33.
 
 ### 5.1 Validator Hardening against Adversarial Exploits
 
@@ -341,6 +342,31 @@ These two rules are legally reconcilable under the principle of specificity (lex
 
 #### Technical Implementation
 To respect this interaction, the pipeline resolver dynamically constructs and formats apportioned text for all amended clauses when a claim spans the boundary. This formatted text displays both pre-amendment and post-amendment rates (e.g. `$120` and `$175` for §6.4.1) labeled with their respective date periods. This ensures the synthesizer has access to both values to explain the proration correctly, and permits the citation validator to verify the facts from the source text.
+
+### Pre-Computed Prorated Arithmetic (Q20 / `_compute_prorated_rate`)
+
+**Design decision**: when a claim period spans the 1 March 2026 amendment boundary, the pipeline pre-computes the daily-weighted prorated rate in pure Python — no LLM involved — and injects the result into the synthesizer's instruction as an asserted fact. The LLM states the number; it does not calculate it.
+
+**The function** (`src/pipeline.py: _compute_prorated_rate`):
+- Input: `claim_start`, `claim_end` (dates), `old_value` and `new_value` from `AmendmentRecord` (e.g. `"$120 per month"` / `"$175 per month"`).
+- Extracts dollar figures via `_DOLLAR_RE` — requires exactly one per value string. If either string contains ≠1 dollar figure (day-count amendments, table amendments, percentage amendments), returns `None` and the proration is silently skipped.
+- Formula: `(days_before × old_rate + days_after × new_rate) / total_days`, rounded to 2 decimal places.
+- "Before" = claim days strictly before 1 March 2026. "On/after" = days from 1 March inclusive to claim end inclusive.
+
+**Why `AmendmentRecord.old_value` / `new_value` rather than full clause text**: §6.4.1's full text contains `$120` and `$200` (the latter for a different threshold). Requiring exactly one dollar figure per text block would silently fail. The amendment record's substitute values (`"$120 per month"` / `"$175 per month"`) each contain exactly one figure by construction.
+
+**Synthetic context injection**: the prorated figure is injected as a `RetrievalResult` with `clause_id="proration.calc"` so the citation validator can verify the numeric value appears in retrieved context. The LLM is instructed not to cite `proration.calc` directly — it must cite `§6.4.1` and `§5.3` in the same sentence.
+
+**Validator fix — empty-token continuation fast-path**: a boundary-restatement sentence like `"The claim period from 2026-02-01 to 2026-04-01 spans the 1 March 2026 boundary."` is purely restating query context. Its `filtered_sent_tokens` (after removing query tokens and stopwords) is empty. We added a fast-path: if `filtered_sent_tokens` is empty for an uncited sentence, skip it — it makes no new factual claim beyond the query itself. This mirrors the identical existing fast-path already applied to cited sentences in `is_clause_supported`.
+
+**Hand-verified test case (Q20)**:
+- Claim period: 1 February 2026 – 1 April 2026 (60 days)
+- Days before 1 March: 28 (February: 1 Feb – 28 Feb)
+- Days on/after 1 March: 32 (March 1 – April 1)
+- Prorated = (28 × $120 + 32 × $175) / 60 = ($3,360 + $5,600) / 60 = $8,960 / 60 = **$149.33**
+- Pipeline output: $149.33 per month — matches hand-verified figure exactly.
+
+**Graceful skip for non-rate clauses**: §4.3.2 / §9.1.4 (day-count amendments), §6.6.1 (table replacement), §10.5.2 (percentage amendment) all correctly return `None` from `_compute_prorated_rate` and receive the standard "do not calculate" instruction instead.
 
 ### Retrospective Design Note: What I'd Do Differently
 If I had known the amendment was coming, I would have made **clause versions** a first-class concept in the parser and database from day one, rather than bolting them onto retriever outputs as a post-retrieval overlay patch. Storing clauses as a temporal range database (`[start_date, end_date)`) and indexing every historical version separately in the retriever would have made the gating and retrieval logic completely natural and unified, rather than requiring dynamic text patching and synthetic document injections.

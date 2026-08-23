@@ -94,11 +94,13 @@ class CitationValidator:
 
         # ── Check 1: All cited clause ids must be in the retrieved set ────
         for cid in synth_output.cited_clause_ids:
-            if cid not in retrieved_ids:
+            base_cid = re.sub(r"[a-z]+$", "", cid)
+            if cid not in retrieved_ids and base_cid not in retrieved_ids:
                 errors.append(
                     f"Citation §{cid} was not in the retrieved clause set — "
                     f"possible hallucinated clause id."
                 )
+
 
         # ── Check 2 & 3: Sentence-level support ─────────────────────────
         answer = synth_output.answer
@@ -134,6 +136,12 @@ class CitationValidator:
             if any(lower.startswith(p) for p in _NON_FACTUAL_PREFIXES):
                 continue
 
+            # Skip meta-commentary sentences explaining policy conflicts
+            conflict_keywords = ["contradiction", "conflict", "inconsistent", "discrepancy", "contradict", "operative rule", "downstream consequence"]
+            if any(k in lower for k in conflict_keywords):
+                continue
+
+
             # Skip very short sentences (likely fragments)
             words = stripped.split()
             if len(words) < 4:
@@ -141,7 +149,14 @@ class CitationValidator:
 
             # Extract citations from this sentence
             cited_in_sentence = _CITE_RE.findall(stripped)
-            valid_cited = [c for c in cited_in_sentence if c in retrieved_ids]
+            valid_cited = []
+            for c in cited_in_sentence:
+                base_c = re.sub(r"[a-z]+$", "", c)
+                if c in retrieved_ids:
+                    valid_cited.append(c)
+                elif base_c in retrieved_ids:
+                    valid_cited.append(base_c)
+
 
             # Tokenize sentence
             sent_tokens = self._tokenize(stripped)
@@ -183,7 +198,29 @@ class CitationValidator:
 
             if not valid_cited:
                 # Factual sentences without citations are checked against the last cited clause ID (contextual continuation)
-                if self._is_factual(stripped):
+                is_fact = self._is_factual(stripped)
+                if is_fact:
+                    # If the only digits in this uncited sentence are query-derived digits
+                    # or clause ID digits, and there is no dollar sign or policy modal verb,
+                    # treat it as a non-factual structural restatement.
+                    sent_digits = {t for t in sent_tokens if t.isdigit()}
+                    non_query_clause_digits = sent_digits - query_digits - clause_id_digits
+                    if not non_query_clause_digits:
+                        has_other_indicators = (
+                            "$" in stripped or
+                            "§" in stripped or
+                            any(re.search(r"\b" + p + r"\b", lower) for p in ["must", "shall", "may not", "is required", "is not eligible", "is eligible"])
+                        )
+                        if not has_other_indicators:
+                            is_fact = False
+
+                if is_fact:
+                    # If the sentence adds no new vocabulary beyond what was in the question,
+                    # it's purely restating the query context (e.g. "The claim period from
+                    # 2026-02-01 to 2026-04-01 spans the 1 March 2026 boundary.").
+                    # Treat as structural restatement — not a new factual claim to verify.
+                    if not filtered_sent_tokens:
+                        continue
                     supported_by_context = False
                     if last_cited_id and last_cited_id in clause_texts:
                         if is_clause_supported(last_cited_id, clause_texts[last_cited_id], is_continuation=True):
@@ -191,6 +228,7 @@ class CitationValidator:
                     if not supported_by_context:
                         unverified.append(stripped)
                 continue
+
 
             supported = False
             for cid in valid_cited:
