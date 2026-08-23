@@ -22,18 +22,18 @@ Disclosure of AI tooling used in this submission, as required by the Brite Spark
 - Identified and fixed the **parser boundary chunking bug** in `src/parser.py` (flushing the active clause chunk when hitting `#` or `##` part/section headings).
 - Co-designed the **Citation Validator hardening rules** to block adversarial exploits (filtering out clause ID digits, enforcing query digit constraints, restricting uncited validation fallback to contextual continuations of `last_cited_id`, and raising the continuation threshold to `0.35`).
 - Implemented the **pipeline escalation-phrase post-processing safeguard** to clean up minor synthesizer paraphrasing drift on conflict responses.
+- Operated as an active agent on the workspace filesystem, executing commands, running evaluation/test suites, editing files, and creating Git commits under human supervision and review at each step.
 - Drafted `DECISIONS.md` sections for review and editing.
 
 ## What I did
 
 - Designed and built the full pipeline architecture: corpus parser, BM25 retriever, TF-IDF retriever, RRF fusion, gate, synthesizer, citation validator, eval harness, and stress tests.
 - Made every final decision on what to accept, reject, or modify from Antigravity's suggestions. Several suggestions were rejected (e.g. the low-DF topical term mapping approach to query expansion) because I judged the architectural trade-offs to be wrong.
-- Ran every verification query and stress test to confirm fixes before committing.
-- Implemented all code and take full responsibility for every line in the repository. Where Antigravity proposed implementation patterns or function signatures, I adapted and tested them before committing — not copied verbatim. I can explain every component and every decision in this submission.
+- Monitored and approved all code execution, file changes, and commits made by the agent.
+- Implemented all code and take full responsibility for every line in the repository. I can explain every component and every decision in this submission.
 
 ## What AI did not do
 
-- Did not run the code or execute any commands without supervision.
-- Did not access the repository, the corpus, or the API directly.
-- Did not make any final decisions — every suggestion, including code patterns and implementation designs, was reviewed, tested, and either accepted, modified, or rejected before being committed.
+- Did not operate completely autonomously without human review and direction — every command execution, test run, file edit, and Git commit was explicitly requested, monitored, and approved.
+- Did not make any final architectural decisions — every design, pattern, and modification was reviewed and approved.
 - Did not select which problem to attempt or which overall architectural approach to take.
