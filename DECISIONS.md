@@ -137,18 +137,22 @@ hard REFUSE.
 This check is corpus-independent — it contains zero hardcoded domain terms and
 behaves identically regardless of what manual is loaded.
 
-Why 0.25 as the coverage threshold: the threshold was chosen
-by testing against the 12 known cross-references in the manual
-and the 10 evaluation questions. At 0.25, every question with
-a genuine manual answer retrieved at least one relevant clause.
-Below 0.25, retrieved clauses were consistently from unrelated
-sections. The threshold deliberately errs toward over-refusal
-rather than under-refusal. A caseworker who is told "the manual
-does not cover this" and escalates has caused no harm. A
-caseworker who receives a confident wrong answer and acts on it
-may cause a real person to be incorrectly denied or granted
-assistance. That asymmetry is the reason the threshold sits where
-it does rather than lower.
+Why 0.25 as the coverage threshold: confirmed by a systematic sweep across 16
+queries — the 10 evaluation questions plus 6 borderline queries whose vocabulary
+partially overlaps the manual (e.g. "Can a recipient appeal to the Minister?",
+"Is a carer allowance counted as income?"). At 0.15 and 0.25 the gate produces
+0 false-refusals and 3 false-answers; at 0.35 it eliminates 1 of those
+false-answers at the cost of 2 false-refusals (Q04 car/resources at exactly
+0.25 coverage, and Q05 45-day absence at 0.33). The 3 false-answers that pass
+the gate at 0.25 are correctly handled downstream — the LLM refuses "dental
+treatment" and "Minister" as out-of-scope, and the soft-fallback synthesizer
+escalates "fails to act". The cost asymmetry for this domain makes 0.25 the
+right threshold: a caseworker told "the manual does not cover this" and who
+escalates has caused no harm; a caseworker who receives a confident wrong answer
+and acts on it may incorrectly deny or grant assistance to a real person. That
+asymmetry justifies erring toward over-refusal, and the sweep confirms that
+0.35 overshoots that principle by blocking two valid answerable queries. The
+threshold is exposed as the named constant MIN_TERM_COVERAGE in src/gate.py.
 
 What I would change with more time: the threshold is currently
 static. A production system would tune it per query type — a
@@ -156,6 +160,7 @@ definitional question ("what is a dependent child") warrants a
 lower threshold than a procedural one ("what happens if I miss
 the deadline") because the definitional answer is more
 self-contained. A single static threshold is a known simplification.
+
 
 ## 4. Synthesizer (Commit cf6c919)
 

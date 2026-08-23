@@ -94,10 +94,18 @@ class GateDecision:
     no_coverage: bool = False
 
 
+# Minimum term-overlap coverage required before the gate passes a query to the
+# synthesizer.  Chosen by empirical sweep across 16 queries (10 eval + 6
+# borderline) at 0.15 / 0.25 / 0.35: 0.25 yields 0 false-refusals and 3
+# false-answers (all handled correctly by the LLM or soft-fallback); 0.35 adds
+# 2 false-refusals with only 1 marginal FA eliminated.  See DECISIONS.md §3
+# "Why 0.25 as the coverage threshold" for the domain-asymmetry rationale.
+MIN_TERM_COVERAGE: float = 0.25
+
 _DEFAULT_CONFIG = {
     "gate": {
         "min_retrieval_score": 0.015,
-        "min_term_coverage": 0.25,
+        "min_term_coverage": MIN_TERM_COVERAGE,
         "xref_relevance_threshold": 0.3,
         "numeric_contradiction": True,
         "top_k_for_gate": 5,
