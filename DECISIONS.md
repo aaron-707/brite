@@ -252,6 +252,8 @@ To prevent adversarial sentences from exploiting the RAG context or the validati
 2. **Factual Digit Constraint**: If a sentence contains a query-derived digit (e.g. `"45"` from a 45-day absence query), the validator enforces that the sentence must also contain at least one valid threshold digit from the cited manual clause (e.g. `"28"`). This blocks statements that use query numbers to falsely claim eligibility.
 3. **Contextual Continuation Scope**: Factual sentences without inline citations are checked *only* against the `last_cited_id` representing the contextual continuation of the immediately preceding sentence, preventing the synthesizer from mixing terms from unrelated retrieved clauses.
 4. **Continuation Overlap Threshold**: Uncited continuation sentences must meet a higher overlap score of `0.35` (`min_continuation_overlap`) to be marked as verified, preventing weak 15% overlap leaks.
+5. **Strict Conflict-Commentary & Digit-Filter Refinements**: Hardened the validator against adversarial exploits that abuse conflict-related keywords or query-derived digits. First, the conflict-commentary skip is narrowed to trigger only on specific, known structural meta-phrases (e.g., "there is a conflict", "inconsistent", "is the operative rule") and is strictly disabled if the sentence contains a dollar sign (`$`) or policy obligation verbs (`must`, `shall`, etc.). Second, query-digit exclusions are restricted solely to 4-digit year tokens (e.g. `2026`), ensuring shorter query digits (e.g. `45` days) remain subject to strict factual verification.
+
 
 ## 6. Stress Testing — Findings and Decisions
 

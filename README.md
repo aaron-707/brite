@@ -13,6 +13,7 @@ Does:
 - Parse and apply amendments from `data/amendment-2026-01.md` alongside the base manual `data/policy-manual.md`.
 - Support date-based temporal routing using determination and event dates to resolve amended clauses.
 - Cite the exact clause (§X.Y.Z) for every substantive claim.
+- Compute and state the exact prorated dollar figure for claim periods spanning the 1 March 2026 amendment boundary.
 - Detect and surface numeric contradictions between clauses.
 - Detect and flag dead cross-references in the manual.
 - Refuse cleanly when the manual is silent on a topic.
@@ -66,7 +67,7 @@ copy .env.example .env
 Open `.env` and set your Gemini API key:
 ```env
 GEMINI_API_KEY=your_actual_api_key_here
-GEMINI_MODEL=gemini-3.1-flash-lite
+GEMINI_MODEL=gemini-flash-lite-latest
 ```
 
 ## Usage
@@ -98,9 +99,10 @@ Citations: §2.1.2, §2.3.1
 python -m tests.eval.run_eval
 ```
 
-Runs the pipeline against the 19-question evaluation set. Results written to
+Runs the pipeline against the 20-question evaluation set. Results written to
 `tests/eval/results.json`. The harness does not exit non-zero on question failures
-— honest pass/fail reporting is the point. Final result: 19/19 PASS.
+— honest pass/fail reporting is the point. Final result: 20/20 PASS.
+
 
 ### Stress tests
 
