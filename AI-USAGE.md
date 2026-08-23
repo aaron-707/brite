@@ -25,7 +25,7 @@ Disclosure of AI tooling used in this submission, as required by the Brite Spark
 - Designed and built the full pipeline architecture: corpus parser, BM25 retriever, TF-IDF retriever, RRF fusion, gate, synthesizer, citation validator, eval harness, and stress tests.
 - Made every final decision on what to accept, reject, or modify from Antigravity's suggestions. Several suggestions were rejected (e.g. the low-DF topical term mapping approach to query expansion) because I judged the architectural trade-offs to be wrong.
 - Ran every verification query and stress test to confirm fixes before committing.
-- Wrote all code. Antigravity described designs and wrote prompts — I implemented them.
+- Implemented all code. Where Antigravity proposed implementation patterns or function signatures, I adapted, tested, and verified them before committing — not copied them verbatim.
 - Reviewed, tested, and took responsibility for every line committed to the repository. Some implementation patterns were proposed by Antigravity and adapted during coding — I verified each one worked correctly before committing and can explain every line.
 
 ## What AI did not do
