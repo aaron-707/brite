@@ -129,6 +129,16 @@ def run_evaluation() -> None:
                 if escalation_phrase not in result.answer:
                     passed = False
                     fail_reason = "Escalation instruction not present in FLAG_CONFLICT answer"
+                elif q["id"] == "Q02":
+                    if "4.3.2" not in result.answer or "9.1.4" not in result.answer:
+                        passed = False
+                        fail_reason = "Clause numbers 4.3.2 and 9.1.4 not present in Q02 answer"
+                    elif "10 calendar days" not in result.answer.lower() or "30 calendar days" not in result.answer.lower():
+                        passed = False
+                        fail_reason = "Verbatim text of conflicting clauses not present in Q02 answer"
+                    elif "operative" not in result.answer.lower() or ("consequence" not in result.answer.lower() and "provision" not in result.answer.lower() and "downstream" not in result.answer.lower()):
+                        passed = False
+                        fail_reason = "Explanation of operative rule vs downstream consequence not present in Q02 answer"
             
             if passed:
                 passed_count += 1

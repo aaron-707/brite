@@ -6,7 +6,7 @@
     "expected_decision": "ANSWER",
     "pass": true,
     "fail_reason": null,
-    "answer": "A person aged 16 or 17 may be eligible if they do not belong to another household and have no person with parental responsibility able and willing to support them, or if they live with a dependent child of whom they are a parent (§2.3.1). To be eligible for assistance, a person must also meet certain conditions, such as being aged 18 or over or satisfying the rules for younger persons, residing in the county, having income and resources under the limits, not being excluded, and making a valid application (2.1.2). An applicant is someone who has submitted an application that has not yet been determined (1.4.1).",
+    "answer": "A person aged 16 can be eligible for assistance if they meet certain criteria, such as not living with any other household, having no person with parental responsibility able and willing to provide support, or being a parent of a dependent child living with them (§2.3.1). To be eligible, an applicant must be aged 18 or over, or meet the requirements of section 2.3 (§2.1.2(b)). Additionally, a person who has submitted an application that is not yet determined is considered an applicant (§1.4.1), and eligibility also depends on meeting residency and other program conditions (§2.1.2).",
     "citations": [
       "2.3.1",
       "2.1.2",
@@ -20,11 +20,12 @@
     "expected_decision": "FLAG_CONFLICT",
     "pass": true,
     "fail_reason": null,
-    "answer": "There is a direct conflict in the manual regarding the timeframe to report a change of circumstances. Clause 4.3.2 states that a recipient must report a change within 10 calendar days of the change occurring or becoming aware of it (4.3.2). However, clause 9.1.4 refers to a period of 30 calendar days required under section 4.3 (9.1.4). These two clauses disagree on the exact number of days. The manual also defines a change of circumstances as any change in the facts on which the eligibility or award was based, such as household composition, income, address, or member circumstances (1.4.8). This matter should be referred to a supervisor before any determination is made.",
+    "answer": "There is a numeric contradiction in the manual regarding the timeframe to report a change of circumstances. Section 4.3.2 states that a recipient must report changes within 10 calendar days of the change or of becoming aware of it, whichever is later (4.3.2). Section 9.1.4 refers to a period of 30 calendar days required under §4.3. Section 4.3.2 is the operative rule and obligation requiring reporting within 10 days, while §9.1.4 is a downstream consequence related to recovering overpayments. Conflicting provisions: 4.3.2 states: \"A recipient must report any change in household composition, income, address, or the circumstances of any household member within 10 calendar days of the change occurring, or within 10 calendar days of the recipient becoming aware of the change, whichever is later.\" 9.1.4 states: \"Where an overpayment has arisen from a change of circumstances, and the recipient reported the change within the 30 calendar days required under §4.3, no overpayment shall be established in respect of any period before the date on which the Department was in a position to act on the report.\" Other known details from non-conflicting clauses state that failure to report within the period in §4.3.2 may lead to a sanction or an overpayment (4.3.4), and reports can be made in person, by phone, in writing, or online (4.3.3). This matter should be referred to a supervisor before any determination is made.",
     "citations": [
       "4.3.2",
       "9.1.4",
-      "1.4.8"
+      "4.3.4",
+      "4.3.3"
     ]
   },
   {
@@ -34,11 +35,9 @@
     "expected_decision": "FLAG_CONFLICT",
     "pass": true,
     "fail_reason": null,
-    "answer": "There is a conflict in the manual regarding the needs figure calculation for a full-time student. Section 7.1.3 states that the needs figure is calculated by household size and composition, except for full-time students as referenced in section 5.4 (7.1.3). However, section 5.4.1 discusses recipients in receipt of a care allowance. This means section 7.1.3 contains an incorrect or dead cross-reference because the referenced clause appears topically unrelated. Aside from this conflict, the manual defines a full-time student as a person enrolled in a course of study at an accredited institution of higher education where the institution classifies the enrolment as full-time, and this status is based on the institution's classification rather than contact hours (1.4.6). Furthermore, temporary absence for full-time education is addressed separately and is not considered a temporary absence (3.2.3). This matter should be referred to a supervisor before any determination is made.",
+    "answer": "There is a structural reference issue in the manual regarding full-time students. The needs figure calculation is generally based on household size and composition, but it makes an exception for full-time students by referring to section 5.4 (7.1.3). However, section 5.4.1 actually discusses care allowances rather than full-time students, which means the reference is broken and points to a topically unrelated section. Conflicting provisions: The text of section 7.1.3 states that the needs figure is calculated by reference to household size and composition, except in the case of full-time students (see §5.4), and is subject to the adjustments in §7.3. The policy manual does not provide the actual calculation rules for full-time students due to this broken reference. This matter should be referred to a supervisor before any determination is made.",
     "citations": [
-      "7.1.3",
-      "1.4.6",
-      "3.2.3"
+      "7.1.3"
     ]
   },
   {
@@ -48,7 +47,7 @@
     "expected_decision": "ANSWER",
     "pass": true,
     "fail_reason": null,
-    "answer": "Yes, a household can own a motor vehicle because one motor vehicle per household is not counted as a resource (2.4.2). A household is not eligible if their total countable resources exceed $4,000 (2.4.1).",
+    "answer": "A household can own one motor vehicle and still remain eligible for assistance because one motor vehicle per household is not counted as a resource (2.4.2). A household is ineligible only if its total countable resources exceed $4,000 (2.4.1).",
     "citations": [
       "2.4.2",
       "2.4.1"
@@ -61,10 +60,11 @@
     "expected_decision": "ANSWER",
     "pass": true,
     "fail_reason": null,
-    "answer": "A recipient temporarily absent from the county continues to satisfy the residence condition for the first 28 days of the absence (3.2.1). During the period in which the residence is treated as temporary, the award remains unchanged (5.1.2). An absence exceeding the applicable period ends eligibility from the first day following the expiry of that period, unless the Department is satisfied that the recipient intended throughout to return and that the extension of the absence was outside the recipient's control (3.2.4).",
+    "answer": "A recipient who is temporarily absent from Calder County continues to satisfy the residence condition for the first 28 days (§3.2.1). During the period in which the residence is treated as temporary, the award is unchanged (§5.1.2). Because the absence is for 45 days for non-medical reasons, it exceeds the 28-day limit and is not covered by the 90-day extension allowed for specific reasons like medical treatment (§3.2.2). An absence exceeding the applicable period ends eligibility from the first day following the expiry of that period, unless the Department is satisfied that the recipient intended throughout to return and that the extension of the absence was outside the recipient's control (§3.2.4).",
     "citations": [
       "3.2.1",
       "5.1.2",
+      "3.2.2",
       "3.2.4"
     ]
   },
@@ -75,7 +75,7 @@
     "expected_decision": "ANSWER",
     "pass": true,
     "fail_reason": null,
-    "answer": "A sanction must not be imposed if the household includes a dependent child under the age of 2 (10.5.3).",
+    "answer": "A sanction must not be imposed if the household includes a dependent child under the age of 2 (§10.5.3).",
     "citations": [
       "10.5.3"
     ]
@@ -87,9 +87,11 @@
     "expected_decision": "ANSWER",
     "pass": true,
     "fail_reason": null,
-    "answer": "The provided clauses do not state a specific timeframe for the Department to complete a review, but they do mention a review completion period referenced in another section (12.1.3). An appeal can be lodged if the Department fails to complete the review within that period (12.1.3). The manual does not cover the exact duration of that period. Please contact your district office or supervisor for guidance.",
+    "answer": "The provided clauses do not state a specific timeframe for the Department to complete a review. The manual only mentions that an appeal can be lodged if the Department fails to complete the review within the period mentioned in section 11.2.3 (12.1.3), but section 11.2.3 is not included in the provided clauses. The manual does state that a recipient can request a review within 30 days of the notification date (11.1.2), and that award reviews happen at intervals not exceeding twelve months (2.2.2). The manual does not cover this matter. Please contact your district office or supervisor for guidance.",
     "citations": [
-      "12.1.3"
+      "12.1.3",
+      "11.1.2",
+      "2.2.2"
     ]
   },
   {
@@ -99,7 +101,7 @@
     "expected_decision": "ANSWER",
     "pass": true,
     "fail_reason": null,
-    "answer": "Recovery of an overpayment can be made through a deduction from ongoing assistance (9.3.1). This deduction must not be more than 10 per cent of the monthly award, or up to 20 per cent where §9.6 applies (9.3.2). The higher rate applies when the Department determines that a recipient deliberately misrepresented or deliberately failed to disclose a material fact (9.6.1).",
+    "answer": "Recovery of an overpayment can happen through deductions from ongoing assistance (§9.3.1). These deductions cannot be more than 10 percent of the monthly award, or up to 20 percent if the case involves deliberate misrepresentation or failure to disclose a material fact (§9.3.2). Deliberate misrepresentation allows the Department to recover at this higher rate (§9.6.1).",
     "citations": [
       "9.3.1",
       "9.3.2",
@@ -113,12 +115,8 @@
     "expected_decision": "ANSWER",
     "pass": true,
     "fail_reason": null,
-    "answer": "A person who has requested a review and is unhappy with the outcome may appeal to the Calder County Assistance Appeals Panel (12.1.1). The appeal must be lodged within 30 days of the date of the notification of the review outcome (12.1.2). A decision made by the Panel is binding on the Department (12.3.1). The manual does not contain any other specific support or rules for appealing decisions about housing costs.",
-    "citations": [
-      "12.1.1",
-      "12.1.2",
-      "12.3.1"
-    ]
+    "answer": "The manual does not cover support available for recipients who want to appeal a decision about their housing costs. Please contact your district office or supervisor for guidance.",
+    "citations": []
   },
   {
     "id": "Q10",

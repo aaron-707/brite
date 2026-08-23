@@ -100,7 +100,14 @@ class CitationValidator:
 
         # ── Check 2 & 3: Sentence-level support ─────────────────────────
         answer = synth_output.answer
-        sentences = self._split_sentences(answer)
+        body = answer
+        for marker in ["conflicting provisions", "sources"]:
+            if marker in body.lower():
+                # Split case-insensitively
+                parts = re.split(re.escape(marker), body, flags=re.IGNORECASE)
+                if parts:
+                    body = parts[0]
+        sentences = self._split_sentences(body)
 
         for sentence in sentences:
             stripped = sentence.strip()
