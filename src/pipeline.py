@@ -461,7 +461,6 @@ class Pipeline:
                 "IMPORTANT: The claim/event period spans the 1 March 2026 amendment boundary. "
                 "Under §5.3 and §7.4.3, you must explicitly state in the answer that the claim spans the amendment boundary, "
                 "cite §5.3 and §7.4.3 immediately when mentioning the boundary or apportionment, and say that the award must be apportioned across the two rate periods. "
-                "Make sure every sentence mentioning the date span, the boundary, or the apportionment contains an inline citation to (5.3) or (7.4.3). "
                 "Do not attempt to calculate or present a specific prorated/apportioned/calculated figure, "
                 "as that arithmetic is out of scope for this system."
             )
