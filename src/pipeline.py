@@ -8,15 +8,135 @@ from __future__ import annotations
 
 import sys
 from dataclasses import dataclass
+from datetime import date, datetime
 from pathlib import Path
 
 import re
 
+from .amendment_parser import parse_amendment, AmendmentRecord
 from .citation_validator import CitationValidator, ValidationResult
 from .gate import Gate, GateDecision
 from .parser import Clause, build_clause_index, parse_corpus, parse_part_headings
 from .retriever import HybridRetriever, RetrievalResult
 from .synthesizer import Synthesizer, SynthesizerOutput
+from .temporal import resolve_clause, ClauseVersion
+
+
+# ── Month name → number ───────────────────────────────────────────────────────
+_MONTH_NAMES = {
+    "january": 1, "february": 2, "march": 3, "april": 4,
+    "may": 5, "june": 6, "july": 7, "august": 8,
+    "september": 9, "october": 10, "november": 11, "december": 12,
+}
+
+# ISO date: 2026-04-15
+_ISO_DATE_RE = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
+# "15 April 2026" or "April 15, 2026" or "April 2026"
+_NAMED_DATE_RE = re.compile(
+    r"\b(?:(\d{1,2})\s+)?(january|february|march|april|may|june|july|august"
+    r"|september|october|november|december)(?:\s+(\d{4}))?\b",
+    re.IGNORECASE,
+)
+
+# Phrases that signal the event_date context
+_EVENT_PHRASES = re.compile(
+    r"\b(?:change(?:d)?\s+(?:of\s+)?circumstances?\s+(?:in|on|from|during)"
+    r"|reported?\s+(?:in|on)\s+"
+    r"|change\s+occurred\s+(?:in|on)"
+    r"|event\s+(?:in|on)"
+    r"|claim\s+from"
+    r"|happened\s+in)\b",
+    re.IGNORECASE,
+)
+
+# Phrases that signal the determination_date context
+_DET_PHRASES = re.compile(
+    r"\b(?:determination\s+(?:made\s+)?(?:in|on|today)"
+    r"|decided\s+(?:in|on|today)"
+    r"|assessed\s+(?:in|on|today)"
+    r"|as\s+of\s+today"
+    r"|made\s+today)\b",
+    re.IGNORECASE,
+)
+
+
+def _parse_named_date(match: re.Match) -> date | None:
+    """Convert a named-month regex match to a date.  Day defaults to 1."""
+    day_str, month_str, year_str = match.group(1), match.group(2), match.group(3)
+    month = _MONTH_NAMES.get(month_str.lower())
+    if month is None:
+        return None
+    year = int(year_str) if year_str else date.today().year
+    day = int(day_str) if day_str else 1
+    try:
+        return date(year, month, day)
+    except ValueError:
+        return None
+
+
+def _extract_dates(question: str) -> tuple[date, date | None]:
+    """Extract determination_date and event_date from a question string.
+
+    Strategy (first match wins within each context):
+      1. ISO dates (YYYY-MM-DD)
+      2. Named-month dates ("in February 2026", "15 March 2026")
+      3. "today" → today's date for determination_date
+
+    Heuristic for event vs determination context: if an event-phrase
+    precedes a date, it's taken as event_date; otherwise it contributes
+    to determination_date.  With only one date found, it's always
+    determination_date and event_date stays None.
+
+    Returns:
+        (determination_date, event_date)
+        determination_date defaults to today if nothing is found.
+        event_date defaults to None if not mentioned.
+    """
+    text = question
+
+    # Collect all date candidates with their position and kind
+    candidates: list[tuple[int, date, str]] = []  # (pos, date, kind_hint)
+
+    for m in _ISO_DATE_RE.finditer(text):
+        try:
+            d = date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+            candidates.append((m.start(), d, "iso"))
+        except ValueError:
+            pass
+
+    for m in _NAMED_DATE_RE.finditer(text):
+        d = _parse_named_date(m)
+        if d:
+            candidates.append((m.start(), d, "named"))
+
+    # Check for "today"
+    if re.search(r"\btoday\b", text, re.IGNORECASE):
+        candidates.append((0, date.today(), "today"))
+
+    if not candidates:
+        return date.today(), None
+
+    # Sort by position
+    candidates.sort(key=lambda x: x[0])
+
+    if len(candidates) == 1:
+        return candidates[0][1], None
+
+    # With 2+ dates: check for event-phrase before each candidate
+    event_date: date | None = None
+    det_date: date | None = None
+
+    for pos, d, kind in candidates:
+        # Look at the 100 chars before this date for event/det phrase
+        window = text[max(0, pos - 100): pos]
+        if _EVENT_PHRASES.search(window) and event_date is None:
+            event_date = d
+        elif det_date is None:
+            det_date = d
+
+    # If we have both, fine; if only event_date found, det_date = today
+    determination_date = det_date if det_date else date.today()
+    return determination_date, event_date
 
 
 def _dedup_conflicts(conflicts: list[str]) -> list[str]:
@@ -59,6 +179,12 @@ class Pipeline:
         self.clauses = parse_corpus(corpus_path)
         self.clause_index = build_clause_index(self.clauses)
         self.part_headings = parse_part_headings(corpus_path)
+        # Load amendment records once — used per-query to build resolved index
+        self.amendments = parse_amendment()
+        # Set of clause IDs touched by any amendment (fast membership test)
+        self._amended_ids: frozenset[str] = frozenset(
+            r.target_clause_id for r in self.amendments
+        )
 
         # Initialize components
         self.retriever = HybridRetriever(self.clauses, corpus_path=corpus_path, config_path=config_path)
@@ -77,15 +203,35 @@ class Pipeline:
             cfg = {}
         self.max_retries: int = cfg.get("synthesizer", {}).get("max_retries", 1)
 
-    def run(self, question: str) -> PipelineResult:
+    def run(
+        self,
+        question: str,
+        determination_date: date | None = None,
+        event_date: date | None = None,
+    ) -> PipelineResult:
         """Run the full pipeline for a question.
 
         Args:
             question: The user's question about the policy manual.
+            determination_date: Override the determination date for temporal
+                resolution.  If None, extracted from the question text or
+                defaulted to today.
+            event_date: Override the event date (change of circumstances) for
+                §5.2 temporal resolution.  If None, extracted from the
+                question or left as None (unresolved / ambiguous).
 
         Returns:
             PipelineResult with the decision, answer, and supporting data.
         """
+        # ── Temporal date resolution ──────────────────────────────────────
+        # Always extract from question text first; explicit overrides win.
+        extracted_det, extracted_evt = _extract_dates(question)
+        if determination_date is None:
+            determination_date = extracted_det
+        if event_date is None:
+            event_date = extracted_evt
+        # (If the caller passed explicit dates, extraction results are discarded.)
+
         # Fast path: raw clause reference lookup
         stripped = question.strip()
         match = self._RAW_CLAUSE_RE.match(stripped)
@@ -119,6 +265,32 @@ class Pipeline:
         # Step 1: Retrieve
         expanded_question = self.retriever._expand_query(question)
         results = self.retriever.query(expanded_question)
+
+        # Step 1b: Temporal patch — resolve amended clause texts in-place.
+        # For each retrieval result whose clause_id is affected by an amendment,
+        # call resolve_clause with the query's determination_date and event_date.
+        # The patched clause_text flows through to Gate and Synthesizer unchanged
+        # — no modifications to their internals required.
+        for result in results:
+            if result.clause_id in self._amended_ids:
+                try:
+                    cv = resolve_clause(
+                        result.clause_id,
+                        determination_date=determination_date,
+                        event_date=event_date,
+                        clause_index=self.clause_index,
+                        amendments=self.amendments,
+                    )
+                    if cv.ambiguous:
+                        # Cannot resolve without event_date — use old_text
+                        # (conservative: don't silently apply post-amendment text)
+                        if cv.old_text is not None:
+                            result.clause_text = cv.old_text
+                    elif cv.exists and cv.text is not None:
+                        result.clause_text = cv.text
+                    # If exists=False: clause not yet in force — leave base text
+                except KeyError:
+                    pass  # shouldn't happen; defensive
 
         # Step 2: Gate
         gate_decision = self.gate.evaluate(expanded_question, results, self.clause_index)
@@ -198,14 +370,42 @@ class Pipeline:
         )
 
 
+def _parse_date_flag(value: str, flag: str) -> date:
+    """Parse a YYYY-MM-DD date string from a CLI flag; exit on error."""
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError:
+        print(f"Error: {flag} must be a date in YYYY-MM-DD format (got {value!r})")
+        sys.exit(1)
+
+
 def main() -> None:
     """CLI entry point.
 
     Usage:
         python -m src.pipeline "<question>"
         python -m src.pipeline --source §4.3.2
+        python -m src.pipeline --as-of 2026-02-15 "<question>"
+        python -m src.pipeline --as-of 2026-04-15 --event-date 2026-02-10 "<question>"
     """
     args = sys.argv[1:]
+
+    # ── Parse --as-of / --event-date overrides ────────────────────────────
+    det_override: date | None = None
+    evt_override: date | None = None
+    remaining: list[str] = []
+    i = 0
+    while i < len(args):
+        if args[i] == "--as-of" and i + 1 < len(args):
+            det_override = _parse_date_flag(args[i + 1], "--as-of")
+            i += 2
+        elif args[i] == "--event-date" and i + 1 < len(args):
+            evt_override = _parse_date_flag(args[i + 1], "--event-date")
+            i += 2
+        else:
+            remaining.append(args[i])
+            i += 1
+    args = remaining
 
     # ── --source §X.Y.Z fast-path ─────────────────────────────────────────
     if args and args[0] == "--source":
@@ -228,13 +428,25 @@ def main() -> None:
     if not args:
         print('Usage: python -m src.pipeline "<question>"')
         print("       python -m src.pipeline --source §X.Y.Z")
+        print("       python -m src.pipeline --as-of YYYY-MM-DD [--event-date YYYY-MM-DD] \"<question>\"")
         sys.exit(1)
 
     question = " ".join(args)
     print(f"Question: {question}\n")
 
     pipeline = Pipeline()
-    result = pipeline.run(question)
+    result = pipeline.run(
+        question,
+        determination_date=det_override,
+        event_date=evt_override,
+    )
+
+    # Show which dates governed this query
+    extracted_det, extracted_evt = _extract_dates(question)
+    eff_det = det_override if det_override else extracted_det
+    eff_evt = evt_override if evt_override is not None else extracted_evt
+    print(f"Temporal context: determination_date={eff_det}"
+          + (f", event_date={eff_evt}" if eff_evt else "") + "\n")
 
     print(f"Decision: {result.decision}")
     if result.gate_decision.conflicts:
@@ -252,15 +464,23 @@ def main() -> None:
     print(f"\nAnswer:\n{result.answer}")
     if result.citations:
         print(f"\nCitations: {', '.join('§' + c for c in result.citations)}")
+        # Build a lookup from resolved retrieval results for Sources block
+        resolved_texts: dict[str, str] = {}
+        if result.retrieval_results:
+            for rr in result.retrieval_results:
+                resolved_texts[rr.clause_id] = rr.clause_text
         print("\nSources:")
         for clause_id in result.citations:
+            # Prefer resolved text from retrieval; fall back to base clause_index
+            resolved_text = resolved_texts.get(clause_id)
             clause = pipeline.clause_index.get(clause_id)
-            if clause:
-                part_heading = pipeline.part_headings.get(clause.part(), f"Part {clause.part()}")
+            if resolved_text or clause:
+                text_to_show = resolved_text or (clause.text if clause else "")
+                part_num = clause.part() if clause else int(clause_id.split(".")[0])
+                part_heading = pipeline.part_headings.get(part_num, f"Part {part_num}")
                 print(f"\n  [{part_heading}]")
                 print(f"  §{clause_id}:")
-                # Indent the full clause text for readability
-                for line in clause.text.splitlines():
+                for line in text_to_show.splitlines():
                     print(f"    {line}")
     if result.validation and not result.validation.valid:
         print(f"\nValidation errors: {result.validation.errors}")
