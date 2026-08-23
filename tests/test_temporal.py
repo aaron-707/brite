@@ -190,5 +190,120 @@ class TestTemporalResolver(unittest.TestCase):
         self.assertTrue(cv.is_amended)
 
 
+class TestAmbiguousResolution(unittest.TestCase):
+    """Test deliberate ambiguous=True behavior when event_date is not supplied
+    for event_date-anchored clauses (§4.3.2, §9.1.4).
+
+    Design decision: rather than silently applying or withholding the amendment,
+    the resolver returns ambiguous=True with BOTH versions — text (new) and
+    ambiguous_old_text (old) — so the caller can ask for event_date and call
+    again, or present the caseworker with both options.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.clause_index = build_clause_index(parse_corpus())
+        cls.amendments = parse_amendment()
+
+    def _resolve(self, clause_id: str, det: date, evt: date | None = None) -> ClauseVersion:
+        return resolve_clause(
+            clause_id,
+            determination_date=det,
+            event_date=evt,
+            clause_index=self.clause_index,
+            amendments=self.amendments,
+        )
+
+    def test_432_no_event_date_is_ambiguous(self) -> None:
+        """§4.3.2 with no event_date: result must be ambiguous=True."""
+        cv = self._resolve("4.3.2", det=date(2026, 4, 15), evt=None)
+        self.assertTrue(cv.ambiguous, "Expected ambiguous=True when event_date is missing")
+
+    def test_432_no_event_date_text_is_new_version(self) -> None:
+        """§4.3.2 ambiguous: text field holds the NEW (post-amendment) version."""
+        cv = self._resolve("4.3.2", det=date(2026, 4, 15), evt=None)
+        self.assertIn("14 calendar days", cv.text)
+
+    def test_432_no_event_date_old_text_is_old_version(self) -> None:
+        """§4.3.2 ambiguous: ambiguous_old_text holds the OLD (pre-amendment) version."""
+        cv = self._resolve("4.3.2", det=date(2026, 4, 15), evt=None)
+        self.assertIsNotNone(cv.ambiguous_old_text)
+        self.assertIn("10 calendar days", cv.ambiguous_old_text)
+
+    def test_432_no_event_date_is_not_definitively_amended(self) -> None:
+        """§4.3.2 ambiguous: is_amended must be False — no amendment was definitively applied."""
+        cv = self._resolve("4.3.2", det=date(2026, 4, 15), evt=None)
+        self.assertFalse(cv.is_amended)
+
+    def test_914_no_event_date_is_ambiguous(self) -> None:
+        """§9.1.4 with no event_date: result must be ambiguous=True."""
+        cv = self._resolve("9.1.4", det=date(2026, 4, 15), evt=None)
+        self.assertTrue(cv.ambiguous)
+        self.assertIn("30 calendar days", cv.ambiguous_old_text)
+        self.assertIn("14 calendar days", cv.text)
+        self.assertFalse(cv.is_amended)
+
+    def test_non_event_date_clause_not_ambiguous(self) -> None:
+        """§6.4.1 (determination_date anchor) is never ambiguous — event_date irrelevant."""
+        cv = self._resolve("6.4.1", det=date(2026, 4, 15), evt=None)
+        self.assertFalse(cv.ambiguous)
+        self.assertIsNone(cv.ambiguous_old_text)
+
+
+class TestInsertedClause(unittest.TestCase):
+    """Test resolve_clause for §10.5.3A — a clause inserted by the amendment
+    that does not exist in the base corpus.
+
+    Pre-effective determination_date → exists=False, text=None.
+    Post-effective determination_date → exists=True, full inserted text.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.clause_index = build_clause_index(parse_corpus())
+        cls.amendments = parse_amendment()
+
+    def _resolve(self, clause_id: str, det: date) -> ClauseVersion:
+        return resolve_clause(
+            clause_id,
+            determination_date=det,
+            clause_index=self.clause_index,
+            amendments=self.amendments,
+        )
+
+    def test_10503a_pre_march_does_not_exist(self) -> None:
+        """§10.5.3A with February determination: clause not yet in force, exists=False."""
+        cv = self._resolve("10.5.3A", det=date(2026, 2, 15))
+        self.assertFalse(cv.exists)
+        self.assertIsNone(cv.text)
+        self.assertFalse(cv.is_amended)
+
+    def test_10503a_post_march_exists_with_text(self) -> None:
+        """§10.5.3A with April determination: clause in force, text returned."""
+        cv = self._resolve("10.5.3A", det=date(2026, 4, 15))
+        self.assertTrue(cv.exists)
+        self.assertIsNotNone(cv.text)
+        self.assertIn("10.5.3A", cv.text)
+        self.assertIn("failure to report", cv.text)
+        self.assertIn("increased the award", cv.text)
+        self.assertTrue(cv.is_amended)
+
+    def test_10503a_exactly_on_effective_date_exists(self) -> None:
+        """§10.5.3A with determination exactly on 1 March 2026: should exist."""
+        cv = self._resolve("10.5.3A", det=date(2026, 3, 1))
+        self.assertTrue(cv.exists)
+        self.assertIsNotNone(cv.text)
+
+    def test_genuinely_missing_clause_raises(self) -> None:
+        """A clause ID that doesn't exist at all should raise KeyError."""
+        with self.assertRaises(KeyError):
+            resolve_clause(
+                "99.9.9",
+                determination_date=date(2026, 4, 15),
+                clause_index=self.clause_index,
+                amendments=self.amendments,
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

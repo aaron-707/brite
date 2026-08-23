@@ -12,14 +12,14 @@ Anchor logic (from Amendment No. 2026-01, §5):
          If the change of circumstances occurred before effective_date,
          the old reporting period applies regardless of determination_date.
   §5.3  Apportionment — if the claim spans effective_date, the figures
-         in force on each day of the period apply and the award is
-         apportioned under §7.4.3.  Flagged but not resolved here.
+        in force on each day of the period apply and the award is
+        apportioned under §7.4.3.  Flagged but not resolved here.
 """
 
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 
 from .amendment_parser import AmendmentRecord, parse_amendment
@@ -28,13 +28,47 @@ from .parser import Clause, build_clause_index, parse_corpus
 
 @dataclass
 class ClauseVersion:
-    """The resolved version of a clause after applying/withholding amendments."""
+    """The resolved version of a clause after applying/withholding amendments.
+
+    Fields
+    ------
+    clause_id : str
+        The clause identifier.
+    text : str | None
+        The resolved clause text.  None only when exists=False (clause not yet
+        in force for the given determination_date).
+    is_amended : bool
+        True if at least one amendment was applied.
+    amendment_paragraph : int | None
+        Which amendment paragraph was applied (if any).
+    apportionment : bool
+        §5.3 flag — the claim period spans the amendment's effective date and
+        the award must be apportioned under §7.4.3.  The resolver flags this
+        but does not attempt to resolve it.
+    ambiguous : bool
+        True when the clause has an event_date-anchored amendment (§5.2) but
+        no event_date was supplied to resolve_clause.  The caller must obtain
+        the event_date and call again, or present both versions to the user.
+        When True, `text` holds the NEW (post-amendment) text and
+        `ambiguous_old_text` holds the OLD text, so the caller has both
+        without a second round-trip.
+    ambiguous_old_text : str | None
+        The pre-amendment text when ambiguous=True; None otherwise.
+    exists : bool
+        False when the clause ID belongs to a provision inserted by an
+        amendment that has not yet taken effect for the given
+        determination_date (e.g. §10.5.3A before 1 March 2026).
+        When False, `text` is None.
+    """
 
     clause_id: str
-    text: str
-    is_amended: bool  # True if any amendment was applied to this clause
-    amendment_paragraph: int | None = None  # which amendment paragraph applied
-    apportionment: bool = False  # §5.3 — claim period spans effective date
+    text: str | None
+    is_amended: bool
+    amendment_paragraph: int | None = None
+    apportionment: bool = False
+    ambiguous: bool = False
+    ambiguous_old_text: str | None = None
+    exists: bool = True
 
 
 def _apply_substitution(text: str, old_value: str, new_value: str) -> str:
@@ -86,43 +120,87 @@ def resolve_clause(
     Args:
         clause_id: The clause to resolve (e.g. "4.3.2").
         determination_date: The date the determination is being made.
-        event_date: The date of the change of circumstances (if relevant).
-                    Required for paragraph-2 amendments (§5.2); ignored
-                    for paragraphs 1/3/4 which use determination_date.
-        clause_index: Pre-built clause index. Built on first call if None.
-        amendments: Pre-parsed amendment records. Parsed on first call if None.
+        event_date: The date of the change of circumstances (§5.2 anchor).
+            Required to unambiguously resolve paragraph-2 amendments
+            (§4.3.2, §9.1.4).  If None and the clause has an event_date-
+            anchored amendment, the result is marked ambiguous=True and
+            both the old text (ambiguous_old_text) and new text (text) are
+            returned — the caller must obtain event_date and call again,
+            or ask the user which version applies.  event_date is ignored
+            for paragraphs 1/3/4 which are keyed on determination_date.
+        clause_index: Pre-built clause index (optional; built on call if None).
+        amendments: Pre-parsed amendment records (optional; parsed if None).
 
     Returns:
-        ClauseVersion with the correct text for the given temporal context.
+        ClauseVersion with the resolved text, flags, and both versions when
+        the result is ambiguous.
+
+    Raises:
+        KeyError: If clause_id is not in the base corpus AND has no
+            insert_after amendment (i.e. it genuinely does not exist).
     """
     if clause_index is None:
         clause_index = build_clause_index(parse_corpus())
     if amendments is None:
         amendments = parse_amendment()
 
-    clause = clause_index.get(clause_id)
-    if clause is None:
-        raise KeyError(f"Clause §{clause_id} not found in the policy manual.")
+    # ── Handle inserted clauses (e.g. §10.5.3A) ─────────────────────────
+    # These don't exist in the base corpus; their text comes from the
+    # insert_after amendment record.
+    if clause_id not in clause_index:
+        insert_rec = next(
+            (r for r in amendments
+             if r.target_clause_id == clause_id and r.operation == "insert_after"),
+            None,
+        )
+        if insert_rec is None:
+            raise KeyError(f"Clause §{clause_id} not found in the policy manual.")
 
+        if determination_date >= insert_rec.effective_date:
+            return ClauseVersion(
+                clause_id=clause_id,
+                text=insert_rec.new_value,
+                is_amended=True,
+                amendment_paragraph=insert_rec.amendment_paragraph,
+                exists=True,
+            )
+        else:
+            # Clause not yet in force for this determination_date
+            return ClauseVersion(
+                clause_id=clause_id,
+                text=None,
+                is_amended=False,
+                exists=False,
+            )
+
+    # ── Standard path: clause exists in base corpus ───────────────────────
+    clause = clause_index[clause_id]
     text = clause.text
     applied = False
     applied_paragraph: int | None = None
-    apportionment = False
+    ambiguous = False
+    ambiguous_old_text: str | None = None
 
     # Find all amendments targeting this clause
     for rec in amendments:
         if rec.target_clause_id != clause_id:
             continue
 
-        # Determine which anchor date governs this amendment
         if rec.anchor == "event_date":
-            # §5.2: keyed on when the change of circumstances occurred
-            anchor_date = event_date
-            if anchor_date is None:
-                # No event_date provided — conservative: don't apply
-                # (the caller should provide event_date for paragraph-2
-                # amendments; absence means we can't determine applicability)
+            # §5.2: keyed on when the change of circumstances occurred.
+            if event_date is None:
+                # Deliberate behavior: event_date is required to resolve this
+                # amendment but was not supplied.  Return both versions with
+                # ambiguous=True so the caller can decide — do not silently
+                # apply or withhold the amendment.
+                old_text = text  # pre-amendment (current value of text)
+                new_text = _apply_substitution(text, rec.old_value, rec.new_value)
+                ambiguous = True
+                ambiguous_old_text = old_text
+                text = new_text  # `text` holds the post-amendment version
+                # Don't mark as definitively applied
                 continue
+            anchor_date = event_date
         else:
             # §5.1: keyed on determination_date
             anchor_date = determination_date
@@ -157,5 +235,7 @@ def resolve_clause(
         text=text,
         is_amended=applied,
         amendment_paragraph=applied_paragraph,
-        apportionment=apportionment,
+        ambiguous=ambiguous,
+        ambiguous_old_text=ambiguous_old_text,
+        exists=True,
     )
