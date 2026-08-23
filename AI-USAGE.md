@@ -26,11 +26,11 @@ Disclosure of AI tooling used in this submission, as required by the Brite Spark
 - Made every final decision on what to accept, reject, or modify from Antigravity's suggestions. Several suggestions were rejected (e.g. the low-DF topical term mapping approach to query expansion) because I judged the architectural trade-offs to be wrong.
 - Ran every verification query and stress test to confirm fixes before committing.
 - Wrote all code. Antigravity described designs and wrote prompts — I implemented them.
-- Can explain every component of this submission, every decision in DECISIONS.md, and what the system would do on an input not yet tested.
+- Reviewed, tested, and took responsibility for every line committed to the repository. Some implementation patterns were proposed by Antigravity and adapted during coding — I verified each one worked correctly before committing and can explain every line.
 
 ## What AI did not do
 
-- Did not write, run, or commit any code.
-- Did not select which problem to attempt or which architectural approach to take.
-- Did not access the repository, the corpus, or the API.
-- Did not make any final decisions — every suggestion was reviewed and either accepted, modified, or rejected.
+- Did not run the code or execute any commands.
+- Did not access the repository, the corpus, or the API directly.
+- Did not make any final decisions — every suggestion, including code patterns and implementation designs, was reviewed, tested, and either accepted, modified, or rejected before being committed.
+- Did not select which problem to attempt or which overall architectural approach to take.
