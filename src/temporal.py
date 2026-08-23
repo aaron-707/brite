@@ -156,15 +156,12 @@ def resolve_clause(
     # ── Handle inserted clauses (e.g. §10.5.3A) ─────────────────────────
     # These don't exist in the base corpus; their text comes from the
     # insert_after amendment record.
-    if clause_id not in clause_index:
-        insert_rec = next(
-            (r for r in amendments
-             if r.target_clause_id == clause_id and r.operation == "insert_after"),
-            None,
-        )
-        if insert_rec is None:
-            raise KeyError(f"Clause §{clause_id} not found in the policy manual.")
-
+    insert_rec = next(
+        (r for r in amendments
+         if r.target_clause_id == clause_id and r.operation == "insert_after"),
+        None,
+    )
+    if insert_rec is not None:
         if determination_date >= insert_rec.effective_date:
             return ClauseVersion(
                 clause_id=clause_id,
@@ -181,6 +178,9 @@ def resolve_clause(
                 is_amended=False,
                 exists=False,
             )
+
+    if clause_id not in clause_index:
+        raise KeyError(f"Clause §{clause_id} not found in the policy manual.")
 
     # ── Standard path: clause exists in base corpus ───────────────────────
     clause = clause_index[clause_id]

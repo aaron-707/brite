@@ -39,7 +39,7 @@ class AmendmentRecord:
 
 # Matches "In §X.Y.Z, for "old" substitute "new""
 _SUBSTITUTE_RE = re.compile(
-    r'In\s+§(\d+\.\d+(?:\.\d+)?(?:\([a-z]\))?),\s+'
+    r'In\s+§(\d+\.\d+(?:\.\d+[A-Za-z]?)?(?:\([a-z]\))?),\s+'
     r'for\s+["\u201c]([^"\u201d]+)["\u201d]'
     r'(?:\s+\(in both places where it occurs\))?\s+'
     r'substitute\s+["\u201c]\*?\*?([^"\u201d*]+)\*?\*?["\u201d]',
@@ -48,7 +48,7 @@ _SUBSTITUTE_RE = re.compile(
 
 # Matches "After §X.Y.Z, insert — ..."
 _INSERT_RE = re.compile(
-    r'After\s+§(\d+\.\d+(?:\.\d+)?),\s+insert',
+    r'After\s+§(\d+\.\d+(?:\.\d+[A-Za-z]?)?),\s+insert',
     re.IGNORECASE,
 )
 
@@ -142,8 +142,7 @@ def parse_amendment(
         sub_match = _SUBSTITUTE_RE.search(stripped)
         if sub_match:
             target_raw = sub_match.group(1)
-            # Strip sub-clause letter for the clause ID (e.g. "6.4.1(a)" → "6.4.1")
-            target_id = re.match(r"(\d+\.\d+(?:\.\d+)?)", target_raw).group(1)
+            target_id = re.match(r"(\d+\.\d+(?:\.\d+[A-Za-z]?)?)", target_raw).group(1)
             records.append(AmendmentRecord(
                 amendment_paragraph=current_paragraph,
                 target_clause_id=target_id,
@@ -157,7 +156,7 @@ def parse_amendment(
 
         # ── Table replacement: "substitute the following —" ──────────────
         if "substitute the following" in stripped.lower():
-            clause_match = re.search(r"§(\d+\.\d+(?:\.\d+)?)", stripped)
+            clause_match = re.search(r"§(\d+\.\d+(?:\.\d+[A-Za-z]?)?)", stripped)
             if clause_match:
                 target_id = clause_match.group(1)
                 table_text = _extract_table(lines, i + 1)

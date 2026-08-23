@@ -11,10 +11,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 # Matches lines like **1.2.3** or **1.2.3 Some Title**
-_CLAUSE_RE = re.compile(r"^\*\*(\d+\.\d+\.\d+)(?:\s+.*)?\*\*")
+_CLAUSE_RE = re.compile(r"^\*\*(\d+\.\d+\.\d+[A-Za-z]?)(?:\s+.*)?\*\*")
 
 # Matches cross-references like §4.3.2 or §4.3
-_XREF_RE = re.compile(r"§(\d+\.\d+(?:\.\d+)?)")
+_XREF_RE = re.compile(r"§(\d+\.\d+(?:\.\d+[A-Za-z]?)?)")
 
 
 @dataclass

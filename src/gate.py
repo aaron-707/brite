@@ -27,7 +27,7 @@ _NUM_UNIT_RE = re.compile(
 )
 
 # Regex to find cross-reference targets
-_XREF_RE = re.compile(r"§(\d+\.\d+(?:\.\d+)?)")
+_XREF_RE = re.compile(r"§(\d+\.\d+(?:\.\d+[A-Za-z]?)?)")
 
 
 def _resolve_xref(ref: str, all_clauses: dict[str, Clause]) -> list[Clause]:
@@ -74,7 +74,7 @@ def _dedup_conflicts(conflicts: list[str]) -> list[str]:
     seen_clauses = set()
     deduped = []
     for entry in conflicts:
-        clause_ids = re.findall(r"§?(\d+\.\d+(?:\.\d+)?)", entry)
+        clause_ids = re.findall(r"§?(\d+\.\d+(?:\.\d+[A-Za-z]?)?)", entry)
         key = frozenset(clause_ids)
         if key not in seen_clauses:
             seen_clauses.add(key)
@@ -329,7 +329,7 @@ class Gate:
         for clause in clauses:
             text = clause["text"]
             clause_id = clause["id"]
-            anchors = re.findall(r"§(\d+\.\d+)", text)
+            anchors = re.findall(r"§(\d+\.\d+(?:\.\d+[A-Za-z]?)?)", text)
             num_unit_pairs = re.findall(
                 r"(\d+(?:\.\d+)?)\s*(calendar days|days|per cent|percent|%|weeks|months|hours)",
                 text, re.IGNORECASE

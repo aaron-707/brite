@@ -28,6 +28,18 @@ _GEMINI_ENDPOINT = (
     "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 )
 
+
+def _cid_sort_key(c: str) -> tuple:
+    parts = []
+    for p in c.split("."):
+        m = re.match(r"^(\d+)([A-Za-z]?)$", p)
+        if m:
+            parts.append((int(m.group(1)), m.group(2)))
+        else:
+            parts.append((0, p))
+    return tuple(parts)
+
+
 # System instruction for the LLM
 _SYSTEM_INSTRUCTION = """\
 You are a policy assistant for the Calder County Household Support Program. Your job is to answer questions from front-line caseworkers using ONLY the provided policy manual clauses.
@@ -158,7 +170,7 @@ class Synthesizer:
             conflict_details = []
             for conflict in gate_decision.conflicts:
                 conflict_details.append(f"- {conflict}")
-                cids = re.findall(r"(\d+\.\d+(?:\.\d+)?)", conflict)
+                cids = re.findall(r"(\d+\.\d+(?:\.\d+[A-Za-z]?)?)", conflict)
                 for cid in cids:
                     for res in clauses:
                         if res.clause_id == cid:
@@ -283,12 +295,12 @@ class Synthesizer:
             answer = parsed.get("answer", "")
             raw_citations = parsed.get("citations", [])
             citations = []
-            cite_re = re.compile(r"(\d+\.\d+(?:\.\d+)?)")
+            cite_re = re.compile(r"(\d+\.\d+(?:\.\d+[A-Za-z]?)?)")
             for c in raw_citations:
                 match = cite_re.search(str(c))
                 if match:
                     citations.append(match.group(1))
-            citations = sorted(list(set(citations)), key=lambda c: tuple(int(p) if p.isdigit() else p for p in c.split(".")))
+            citations = sorted(list(set(citations)), key=_cid_sort_key)
             
             return SynthesizerOutput(
                 answer=answer,
@@ -304,7 +316,7 @@ class Synthesizer:
                 pass
 
             # Try to extract citations from raw text
-            cite_re = re.compile(r"§?(\d+\.\d+(?:\.\d+)?)")
+            cite_re = re.compile(r"§?(\d+\.\d+(?:\.\d+[A-Za-z]?)?)")
             found = cite_re.findall(text)
 
             return SynthesizerOutput(

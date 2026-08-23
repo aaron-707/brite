@@ -143,7 +143,7 @@ def _dedup_conflicts(conflicts: list[str]) -> list[str]:
     seen_clauses = set()
     deduped = []
     for entry in conflicts:
-        clause_ids = re.findall(r"§?(\d+\.\d+(?:\.\d+)?)", entry)
+        clause_ids = re.findall(r"§?(\d+\.\d+(?:\.\d+[A-Za-z]?)?)", entry)
         key = frozenset(clause_ids)
         if key not in seen_clauses:
             seen_clauses.add(key)
@@ -168,7 +168,7 @@ class PipelineResult:
 class Pipeline:
     """Orchestrates the full RAG pipeline."""
 
-    _RAW_CLAUSE_RE = re.compile(r"^§?(\d+\.\d+(?:\.\d+)?)$")
+    _RAW_CLAUSE_RE = re.compile(r"^§?(\d+\.\d+(?:\.\d+[A-Za-z]?)?)$")
 
     def __init__(
         self,
@@ -185,6 +185,23 @@ class Pipeline:
         self._amended_ids: frozenset[str] = frozenset(
             r.target_clause_id for r in self.amendments
         )
+
+        # Inject inserted clauses (e.g. §10.5.3A) into the retriever index.
+        # These clauses don't exist in the base corpus; they live only in the
+        # amendment's insert_after records.  We add them here — using their
+        # post-amendment text — so the retriever can find them for queries
+        # about the new provision.  Per-query temporal patching in run() then
+        # drops them from retrieved results for pre-effective determinations,
+        # so Gate and Synthesizer never see them as if they were current law.
+        for rec in self.amendments:
+            if rec.operation == "insert_after" and rec.target_clause_id not in self.clause_index:
+                synthetic = Clause(
+                    clause_id=rec.target_clause_id,
+                    text=rec.new_value,
+                    cross_references=[],
+                )
+                self.clauses.append(synthetic)
+                self.clause_index[rec.target_clause_id] = synthetic
 
         # Initialize components
         self.retriever = HybridRetriever(self.clauses, corpus_path=corpus_path, config_path=config_path)
@@ -266,11 +283,14 @@ class Pipeline:
         expanded_question = self.retriever._expand_query(question)
         results = self.retriever.query(expanded_question)
 
-        # Step 1b: Temporal patch — resolve amended clause texts in-place.
+        # Step 1b: Temporal patch — resolve amended clause texts, filter by date.
         # For each retrieval result whose clause_id is affected by an amendment,
         # call resolve_clause with the query's determination_date and event_date.
-        # The patched clause_text flows through to Gate and Synthesizer unchanged
-        # — no modifications to their internals required.
+        # Results where exists=False (clause not yet in force) are DROPPED so
+        # Gate and Synthesizer never see them as current law.
+        # The patched clause_text flows through unchanged for everything else
+        # — no modifications to Gate/Synthesizer internals required.
+        patched_results: list[RetrievalResult] = []
         for result in results:
             if result.clause_id in self._amended_ids:
                 try:
@@ -281,16 +301,22 @@ class Pipeline:
                         clause_index=self.clause_index,
                         amendments=self.amendments,
                     )
+                    if not cv.exists:
+                        # Clause not yet in force for this determination_date:
+                        # drop it entirely — don't let pre-amendment synthetic
+                        # text leak into Gate or Synthesizer.
+                        continue
                     if cv.ambiguous:
                         # Cannot resolve without event_date — use old_text
                         # (conservative: don't silently apply post-amendment text)
                         if cv.old_text is not None:
                             result.clause_text = cv.old_text
-                    elif cv.exists and cv.text is not None:
+                    elif cv.text is not None:
                         result.clause_text = cv.text
-                    # If exists=False: clause not yet in force — leave base text
                 except KeyError:
                     pass  # shouldn't happen; defensive
+            patched_results.append(result)
+        results = patched_results
 
         # Step 2: Gate
         gate_decision = self.gate.evaluate(expanded_question, results, self.clause_index)
@@ -368,6 +394,17 @@ class Pipeline:
             validation=last_validation,
             retrieval_results=results,
         )
+
+
+def _cid_sort_key(c: str) -> tuple:
+    parts = []
+    for p in c.split("."):
+        m = re.match(r"^(\d+)([A-Za-z]?)$", p)
+        if m:
+            parts.append((int(m.group(1)), m.group(2)))
+        else:
+            parts.append((0, p))
+    return tuple(parts)
 
 
 def _parse_date_flag(value: str, flag: str) -> date:
@@ -453,8 +490,8 @@ def main() -> None:
         print(f"Conflicts: {result.gate_decision.conflicts}")
         cids = []
         for conflict in result.gate_decision.conflicts:
-            cids.extend(re.findall(r"(\d+\.\d+(?:\.\d+)?)", conflict))
-        cids = sorted(list(set(cids)), key=lambda c: tuple(int(p) if p.isdigit() else p for p in c.split(".")))
+            cids.extend(re.findall(r"(\d+\.\d+(?:\.\d+[A-Za-z]?)?)", conflict))
+        cids = sorted(list(set(cids)), key=_cid_sort_key)
         if cids:
             print("\nConflicting provisions:")
             for cid in cids:
