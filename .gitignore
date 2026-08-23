@@ -36,4 +36,5 @@ data/.expansion_cache.json
 # Local files
 1/
 *.pdf
-
+# Root-level scratch Python scripts
+/*.py
