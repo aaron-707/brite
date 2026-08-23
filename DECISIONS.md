@@ -328,4 +328,15 @@ These two rules are legally reconcilable under the principle of specificity (lex
 ### Technical Implementation
 To respect this interaction, the pipeline resolver dynamically constructs and formats apportioned text for all amended clauses when a claim spans the boundary. This formatted text displays both pre-amendment and post-amendment rates (e.g. `$120` and `$175` for §6.4.1) labeled with their respective date periods. This ensures the synthesizer has access to both values to explain the proration correctly, and permits the citation validator to verify the facts from the source text.
 
+## 12. Escalation-Phrase Safeguard and Validator Fallback Context Restriction
+
+### Escalation-Phrase Safeguard
+Under the Lite model, the synthesizer occasionally displays "paraphrasing drift" on `FLAG_CONFLICT` responses, writing slightly altered versions of the required escalation sentence (e.g. using plural "determinations" or slightly different phrasing). To guarantee 100% literal alignment with the test suite's expectations without relying entirely on soft LLM prompt constraints, a post-processing safeguard was added to `src/pipeline.py` to force-append the exact literal phrase (`"This matter should be referred to a supervisor before any determination is made."`) if it is missing or modified in the valid output.
+
+### Contextual Continuation Validation Restriction
+To prevent adversarial sentences from exploiting the cross-clause validation fallback (which verifies uncited factual sentences), we restricted the verification scope:
+1. Uncited factual sentences are evaluated *only* against the `last_cited_id` (representing the contextual continuation of the immediately preceding sentence).
+2. The verification threshold for these continuation sentences is raised from `0.15` to `0.35` (`min_continuation_overlap`), ensuring that a continuation sentence must share a significant vocabulary overlap with the cited context rather than borrowing arbitrary words from other unrelated retrieved clauses.
+
+
 

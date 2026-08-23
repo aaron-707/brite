@@ -69,6 +69,7 @@ class CitationValidator:
 
         val_cfg = cfg.get("citation_validator", _DEFAULT_CONFIG["citation_validator"])
         self.min_support_overlap: float = val_cfg.get("min_support_overlap", 0.15)
+        self.min_continuation_overlap: float = val_cfg.get("min_continuation_overlap", 0.35)
 
     def validate(
         self,
@@ -121,6 +122,8 @@ class CitationValidator:
             for cid in _CITE_RE.findall(question):
                 clause_id_digits.update(re.findall(r"\d+", cid))
 
+        last_cited_id = None
+
         for sentence in sentences:
             stripped = sentence.strip()
             if not stripped:
@@ -153,7 +156,7 @@ class CitationValidator:
             query_digits = {t for t in question_tokens if t.isdigit()} - clause_id_digits
             has_query_digit = any(d in query_digits for d in sent_digits)
 
-            def is_clause_supported(cid: str, c_text: str) -> bool:
+            def is_clause_supported(cid: str, c_text: str, is_continuation: bool = False) -> bool:
                 c_tokens = self._tokenize(c_text)
                 if not c_tokens:
                     return False
@@ -175,26 +178,26 @@ class CitationValidator:
                     return True
 
                 overlap = len(filtered_sent_tokens & c_tokens) / len(filtered_sent_tokens)
-                return overlap >= self.min_support_overlap
+                threshold = self.min_continuation_overlap if is_continuation else self.min_support_overlap
+                return overlap >= threshold
 
             if not valid_cited:
-                # Factual sentences without citations are checked against all retrieved clauses
+                # Factual sentences without citations are checked against the last cited clause ID (contextual continuation)
                 if self._is_factual(stripped):
-                    supported_by_any = False
-                    for cid in retrieved_ids:
-                        if cid in clause_texts:
-                            if is_clause_supported(cid, clause_texts[cid]):
-                                supported_by_any = True
-                                break
-                    if not supported_by_any:
+                    supported_by_context = False
+                    if last_cited_id and last_cited_id in clause_texts:
+                        if is_clause_supported(last_cited_id, clause_texts[last_cited_id], is_continuation=True):
+                            supported_by_context = True
+                    if not supported_by_context:
                         unverified.append(stripped)
                 continue
 
             supported = False
             for cid in valid_cited:
                 if cid in clause_texts:
-                    if is_clause_supported(cid, clause_texts[cid]):
+                    if is_clause_supported(cid, clause_texts[cid], is_continuation=False):
                         supported = True
+                        last_cited_id = cid  # Update context for subsequent uncited sentences
                         break
 
             if not supported:
