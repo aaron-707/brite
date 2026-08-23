@@ -20,6 +20,20 @@ line so corpus maintainers can catch formatting errors when the manual updates
 quarterly. Duplicate clause ID detection is implemented (emits a warning and
 retains the first occurrence) but does not block ingestion.
 
+### 1.1 Corpus Clause-Boundary Parsing Bug (Commit 8daec3e)
+
+#### The Bug
+The chunking parser in `src/parser.py` was originally designed to split chunks solely by matching `**X.Y.Z**` clause markers. Consequently, markdown Part headers (`#`) and Section headers (`##`) separating different Parts of the manual were accumulated into the text of the final clause of the preceding section. This bug silently corrupted **53 clauses** across the entire corpus.
+
+#### Discovery
+The bug existed since day one but was completely invisible because none of the previous evaluation questions or manual queries returned raw clause-text segments that were closely inspected at the boundary transitions. It was only discovered when §7.4.3 was dynamically retrieved and loaded for the claim apportionment feature, which surfaced the trailing Part 8 header leakage.
+
+#### The Fix
+We modified `src/parser.py` to flush the active clause chunk immediately upon encountering any line starting with `#` (indicating a Part or Section header). The parser also strips any trailing formatting separators (such as empty lines and `---` horizontal rules) before saving the clause. A corpus-wide check now validates that exactly **0** parsed clauses contain a `#` or `##` header anywhere in their text.
+
+#### Retrospective Note
+This was a pre-existing corpus-parsing bug that had been present since the project's inception. It means that the original submission's citation/Sources-block "verbatim text" guarantee was silently broken for 53 boundary clauses the whole time, not just during the amendment work.
+
 ## 2. Retriever (Commit 922bba8)
 
 Implementation: hybrid BM25 Okapi (k1=1.5, b=0.75, hand-rolled) and TF-IDF
@@ -161,17 +175,16 @@ lower threshold than a procedural one ("what happens if I miss
 the deadline") because the definitional answer is more
 self-contained. A single static threshold is a known simplification.
 
-
 ## 4. Synthesizer (Commit cf6c919)
 
 Implementation: Google Gemini REST API via raw requests. Model:
-gemini-3.5-flash. Temperature: 0.1.
+gemini-3.1-flash-lite. Temperature: 0.1.
 
 What I rejected: google-generativeai SDK. Adds a bulky dependency with its own
 version management surface. Raw requests gives identical capability with one
 fewer dependency.
 
-Why gemini-3.5-flash over newer models: standard generation config parameters
+Why gemini-3.1-flash-lite over newer models: standard generation config parameters
 (temperature, top_p, top_k) are reliably supported. Preview models have
 inconsistent config support which breaks the determinism this system requires.
 
@@ -194,6 +207,10 @@ useful context (§7.1.3, §1.4.6). The problem is the manual's own pointer is
 broken. Telling the caseworker "here is what is known and here is what is
 broken" is more useful than a bare "I don't know."
 
+### Paraphrasing Drift & Escalation-Phrase Safeguard
+
+Under the Lite model, the synthesizer occasionally displays "paraphrasing drift" on `FLAG_CONFLICT` responses, writing slightly altered versions of the required escalation sentence (e.g. using plural "determinations" or slightly different phrasing). To guarantee 100% literal alignment with the test suite's expectations without relying entirely on soft LLM prompt constraints, a post-processing safeguard was added to `src/pipeline.py` to force-append the exact literal phrase (`"This matter should be referred to a supervisor before any determination is made."`) if it is missing or modified in the valid output.
+
 ### API Failure Handling
 
 All API failures (HTTP 500, malformed JSON, empty response, timeout, repeated
@@ -201,20 +218,38 @@ All API failures (HTTP 500, malformed JSON, empty response, timeout, repeated
 failure propagates as an unhandled exception to the CLI or eval harness. Backoff
 is capped at 16 seconds per retry with a maximum of 3 attempts.
 
-## 5. Evaluation Results (10-question set, all fixes applied)
+## 5. Evaluation Results (19-question set, all fixes applied)
 
-10/10 PASS.
+19/19 PASS.
 
-Q01 PASS — ANSWER, §2.3.1 cited. Standard eligibility query.
-Q02 PASS — FLAG_CONFLICT, §4.3.2 (10 days) vs §9.1.4 (30 days) surfaced, escalation instruction present.
-Q03 PASS — FLAG_CONFLICT, dead reference §7.1.3→§5.4 surfaced, escalation instruction present.
-Q04 PASS — ANSWER, §2.4.2 motor vehicle disregard cited. Required query expansion fix to retrieve.
-Q05 PASS — ANSWER, §3.2.1 28-day base and §3.2.2 90-day exception both cited correctly as base/exception pair, not a contradiction.
-Q06 PASS — ANSWER, §10.5.3 sanction prohibition for households with dependent child under age 2.
-Q07 PASS — ANSWER, §11.2.3 30-day review completion timeframe. Required query expansion fix to retrieve.
-Q08 PASS — ANSWER, §9.3.2 10%/20% deduction cap cited. Required numeric detector redesign to stop false FLAG_CONFLICT on unrelated unit values.
-Q09 PASS — ANSWER, general appeal process from Part 12 cited. No housing-specific rule invented where none exists.
-Q10 PASS — ANSWER (clean refusal), manual silent on dental costs, escalation instruction present.
+* Q01 PASS — ANSWER, §2.3.1 cited. Standard eligibility query.
+* Q02 PASS — FLAG_CONFLICT, §4.3.2 (10 days) vs §9.1.4 (30 days) surfaced, escalation instruction present.
+* Q03 PASS — FLAG_CONFLICT, dead reference §7.1.3→§5.4 surfaced, escalation instruction present.
+* Q04 PASS — ANSWER, §2.4.2 motor vehicle disregard cited. Required query expansion fix to retrieve.
+* Q05 PASS — ANSWER, §3.2.1 28-day base and §3.2.2 90-day exception both cited correctly as base/exception pair, not a contradiction.
+* Q06 PASS — ANSWER, §10.5.3 sanction prohibition for households with dependent child under age 2.
+* Q07 PASS — ANSWER, §11.2.3 30-day review completion timeframe. Required query expansion fix to retrieve.
+* Q08 PASS — ANSWER, §9.3.2 10%/20% deduction cap cited. Required numeric detector redesign to stop false FLAG_CONFLICT on unrelated unit values.
+* Q09 PASS — ANSWER, general appeal process from Part 12 cited. No housing-specific rule invented where none exists.
+* Q10 PASS — ANSWER (clean refusal), manual silent on dental costs, escalation instruction present.
+* Q11 PASS — ANSWER, §6.4.1 post-March earnings disregard amount ($175) cited.
+* Q12 PASS — ANSWER, §6.4.1 pre-March earnings disregard amount ($120) cited.
+* Q13 PASS — FLAG_CONFLICT, reporting timeline conflict under §4.3.2 vs §9.1.4.
+* Q14 PASS — ANSWER, pre-March sanction authority for failure to report (§10.5.1).
+* Q15 PASS — ANSWER, post-March sanction authority (§10.5.1) and new exception (§10.5.3A).
+* Q16 PASS — FLAG_CONFLICT, reporting timeline conflict details.
+* Q17 PASS — ANSWER, post-March reporting timeline under §4.3.2 (14 calendar days).
+* Q18 PASS — ANSWER, pre-March reporting timeline under §4.3.2 (10 calendar days).
+* Q19 PASS — ANSWER, boundary-spanning proration resolved correctly, citing §5.3, §7.4.3, §6.4.1.
+
+### 5.1 Validator Hardening against Adversarial Exploits
+
+To prevent adversarial sentences from exploiting the RAG context or the validation logic, we hardened the `CitationValidator` through the following mechanisms:
+
+1. **Clause ID Digit Exclusion**: Section numbers (like `3`, `2`, `1` from `3.2.1`) are globally excluded from digit comparison matching to prevent them from acting as false rule threshold overlaps.
+2. **Factual Digit Constraint**: If a sentence contains a query-derived digit (e.g. `"45"` from a 45-day absence query), the validator enforces that the sentence must also contain at least one valid threshold digit from the cited manual clause (e.g. `"28"`). This blocks statements that use query numbers to falsely claim eligibility.
+3. **Contextual Continuation Scope**: Factual sentences without inline citations are checked *only* against the `last_cited_id` representing the contextual continuation of the immediately preceding sentence, preventing the synthesizer from mixing terms from unrelated retrieved clauses.
+4. **Continuation Overlap Threshold**: Uncited continuation sentences must meet a higher overlap score of `0.35` (`min_continuation_overlap`) to be marked as verified, preventing weak 15% overlap leaks.
 
 ## 6. Stress Testing — Findings and Decisions
 
@@ -259,7 +294,7 @@ values anywhere in the pipeline.
 ## 7. What the System Does Not Do
 
 - Does not support multi-turn conversation or session memory.
-- Does not parse any document other than the corpus in data/policy-manual.md.
+- Does not parse any document other than the corpus files.
 - Does not split multi-part queries — retrieves on the full query string and answers the highest-scoring topic.
 - Does not resolve "supervisor" to a named role or contact. The manual is generic; a production system would need a staff directory integration.
 - Does not detect all possible dead references — only those where the term-overlap check fires. A cross-reference in a very short sentence with sparse context may be missed.
@@ -293,50 +328,16 @@ If a query's date range spans the 1 March 2026 boundary, the system sets `has_ap
 - **Synthetic Insertion**: Since the validator requires every factual claim in the answer to be supported by retrieved clauses, we dynamically inject §5.3 (from the amendment) and §7.4.3 (from the base manual) as retrieved documents into the RAG results when apportionment is active.
 - **Output**: The synthesizer is instructed to state that the claim spans the boundary, cite §5.3 and §7.4.3, and say the award must be apportioned without attempting to calculate the actual prorated arithmetic, which is deliberately left out of scope for this text-retrieval system.
 
-### Retrospective Design Note: What I'd Do Differently
-If I had known the amendment was coming, I would have made **clause versions** a first-class concept in the parser and database from day one, rather than bolting them onto retriever outputs as a post-retrieval overlay patch. Storing clauses as a temporal range database (`[start_date, end_date)`) and indexing every historical version separately in the retriever would have made the gating and retrieval logic completely natural and unified, rather than requiring dynamic text patching and synthetic document injections.
+### Transitional Provision Reconciliation (§5.1 vs §5.3)
 
-## 10. Corpus Clause-Boundary Parsing Bug (Commit 8daec3e)
-
-### The Bug
-The chunking parser in `src/parser.py` was originally designed to split chunks solely by matching `**X.Y.Z**` clause markers. Consequently, markdown Part headers (`#`) and Section headers (`##`) separating different Parts of the manual were accumulated into the text of the final clause of the preceding section. This bug silently corrupted **53 clauses** across the entire corpus.
-
-### Discovery
-The bug existed since day one but was completely invisible because none of the previous evaluation questions or manual queries returned raw clause-text segments that were closely inspected at the boundary transitions. It was only discovered when §7.4.3 was dynamically retrieved and loaded for the claim apportionment feature, which surfaced the trailing Part 8 header leakage.
-
-### The Fix
-We modified `src/parser.py` to flush the active clause chunk immediately upon encountering any line starting with `#` (indicating a Part or Section header). The parser also strips any trailing formatting separators (such as empty lines and `---` horizontal rules) before saving the clause. A corpus-wide check now validates that exactly **0** parsed clauses contain a `#` or `##` header anywhere in their text.
-
-### Retrospective Note
-This was a pre-existing corpus-parsing bug that had been present since the project's inception. It means that the original submission's citation/Sources-block "verbatim text" guarantee was silently broken for 53 boundary clauses the whole time, not just during the amendment work.
-
-## 11. Reconciling Transitional Provisions §5.1 and §5.3
-
-### The Tension
 There is a potential tension between two transitional provisions in the Day-Two Amendment:
 - **§5.1**: "The amendments made by paragraphs 1, 3 and 4 apply to any determination made on or after 1 March 2026, including a determination in respect of a period before that date."
 - **§5.3**: "Where a claim relates to a period spanning 1 March 2026, the applicable figures are those in force on each day of the period, and the award is apportioned accordingly under §7.4.3."
 
-On a superficial reading, §5.1 might seem to suggest that any post-March determination unconditionally uses the new rates (e.g. `$175` earnings disregard under §6.4.1) for the entire claim period, even retrospectively. However, §5.3 explicitly demands that if the claim period *spans* 1 March 2026, the figures in force on each day must be applied, requiring proration.
-
-### Reconcilability Analysis
 These two rules are legally reconcilable under the principle of specificity (lex specialis derogat legi generali):
 1. **§5.1** sets the general rule for temporal applicability: determinations made on or after 1 March 2026 are subject to the amended rule set (paragraphs 1, 3, 4), even when assessing past periods.
 2. **§5.3** acts as a specific qualifier for the subset of claims whose period spans the 1 March 2026 boundary. Instead of applying the post-March rates retrospectively to the entire spanned period, it requires applying the pre-amendment rates for the portion before 1 March and the post-amendment rates for the portion on or after 1 March, followed by proration.
 3. If a claim period lies entirely before 1 March 2026 (but is determined on or after 1 March 2026), §5.3 is not triggered, and the general rule of §5.1 applies the new rates retrospectively.
 
-### Technical Implementation
-To respect this interaction, the pipeline resolver dynamically constructs and formats apportioned text for all amended clauses when a claim spans the boundary. This formatted text displays both pre-amendment and post-amendment rates (e.g. `$120` and `$175` for §6.4.1) labeled with their respective date periods. This ensures the synthesizer has access to both values to explain the proration correctly, and permits the citation validator to verify the facts from the source text.
-
-## 12. Escalation-Phrase Safeguard and Validator Fallback Context Restriction
-
-### Escalation-Phrase Safeguard
-Under the Lite model, the synthesizer occasionally displays "paraphrasing drift" on `FLAG_CONFLICT` responses, writing slightly altered versions of the required escalation sentence (e.g. using plural "determinations" or slightly different phrasing). To guarantee 100% literal alignment with the test suite's expectations without relying entirely on soft LLM prompt constraints, a post-processing safeguard was added to `src/pipeline.py` to force-append the exact literal phrase (`"This matter should be referred to a supervisor before any determination is made."`) if it is missing or modified in the valid output.
-
-### Contextual Continuation Validation Restriction
-To prevent adversarial sentences from exploiting the cross-clause validation fallback (which verifies uncited factual sentences), we restricted the verification scope:
-1. Uncited factual sentences are evaluated *only* against the `last_cited_id` (representing the contextual continuation of the immediately preceding sentence).
-2. The verification threshold for these continuation sentences is raised from `0.15` to `0.35` (`min_continuation_overlap`), ensuring that a continuation sentence must share a significant vocabulary overlap with the cited context rather than borrowing arbitrary words from other unrelated retrieved clauses.
-
-
-
+### Retrospective Design Note: What I'd Do Differently
+If I had known the amendment was coming, I would have made **clause versions** a first-class concept in the parser and database from day one, rather than bolting them onto retriever outputs as a post-retrieval overlay patch. Storing clauses as a temporal range database (`[start_date, end_date)`) and indexing every historical version separately in the retriever would have made the gating and retrieval logic completely natural and unified, rather than requiring dynamic text patching and synthetic document injections.
