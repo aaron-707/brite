@@ -1,47 +1,44 @@
 # Brite Spark 2026 — The Grounded Answer
 
-A clause-grounded RAG system for the Calder County Household Support Program policy manual. Given a caseworker's question, it retrieves the relevant policy clauses, checks for internal contradictions and dead cross-references, and produces a plain-language answer with exact clause citations. When the manual is broken or silent, it says so and directs the caseworker to escalate.
+A clause-grounded RAG system for the Calder County Household Support Program
+policy manual. Given a caseworker's question, it retrieves the relevant policy
+clauses, checks for internal contradictions and dead cross-references, and
+produces a plain-language answer with exact clause citations. When the manual is
+broken or silent, it says so and directs the caseworker to escalate.
 
 ## What it does and does not do
 
-Does:
-- Answer policy questions grounded strictly in the HSP manual.
-- Cite the exact clause (§X.Y.Z) for every substantive claim.
-- Detect and surface numeric contradictions between clauses.
-- Detect and flag dead cross-references in the manual.
-- Refuse cleanly when the manual is silent on a topic.
-- Direct caseworkers to a supervisor when the manual conflicts or is broken.
-- Handle colloquial and plain-English queries via a dynamic synonym map generated from the manual's own definitions.
-- Update automatically when the policy manual changes — no code changes required.
+Does: - Answer policy questions grounded strictly in the HSP manual. - Cite the
+exact clause (§X.Y.Z) for every substantive claim. - Detect and surface numeric
+contradictions between clauses. - Detect and flag dead cross-references in the
+manual. - Refuse cleanly when the manual is silent on a topic. - Direct
+caseworkers to a supervisor when the manual conflicts or is broken. - Handle
+colloquial and plain-English queries via a dynamic synonym map generated from
+the manual's own definitions. - Update automatically when the policy manual
+changes — no code changes required.
 
-Does not:
-- Support multi-turn conversation or session memory.
-- Answer questions from any document other than data/policy-manual.md.
-- Fine-tune or train any model.
-- Provide a web interface. The CLI is the complete interface.
-- Resolve "supervisor" to a named contact or role.
+Does not: - Support multi-turn conversation or session memory. - Answer
+questions from any document other than data/policy-manual.md. - Fine-tune or
+train any model. - Provide a web interface. The CLI is the complete interface. -
+Resolve "supervisor" to a named contact or role.
 
 ## Prerequisites
 
 Python 3.10 or higher. No deep learning frameworks required.
 
-Dependencies (all lightweight):
-- scikit-learn — TF-IDF retrieval
-- numpy — matrix operations
-- pyyaml — configuration parsing
-- requests — Gemini REST API calls
-- python-dotenv — API key loading
+Dependencies (all lightweight): - scikit-learn — TF-IDF retrieval - numpy —
+matrix operations - pyyaml — configuration parsing - requests — Gemini REST API
+calls - python-dotenv — API key loading
 
 ## Setup
 
 ### 1. Clone and navigate
 
-    git clone https://github.com/aaron-707/brite.git
-    cd brite
+git clone https://github.com/aaron-707/brite.git cd brite
 
 ### 2. Install dependencies
 
-    pip install -r requirements.txt
+pip install -r requirements.txt
 
 ### 3. Configure environment
 
@@ -53,14 +50,13 @@ Dependencies (all lightweight):
 
 Open .env and set your Gemini API key:
 
-    GEMINI_API_KEY=your_actual_api_key_here
-    GEMINI_MODEL=gemini-3.5-flash
+GEMINI_API_KEY=your_actual_api_key_here GEMINI_MODEL=gemini-3.5-flash
 
 ## Usage
 
 ### Single query
 
-    python -m src.pipeline "Can a person aged 16 apply?"
+python -m src.pipeline "Can a person aged 16 apply?"
 
 Output:
 
@@ -71,14 +67,16 @@ Output:
 
 ### Evaluation harness
 
-    python -m tests.eval.run_eval
+python -m tests.eval.run_eval
 
-Runs the pipeline against the 10-question evaluation set. Results written to tests/eval/results.json. The harness does not exit non-zero on question failures — honest pass/fail reporting is the point. Final result: 10/10 PASS.
+Runs the pipeline against the 10-question evaluation set. Results written to
+tests/eval/results.json. The harness does not exit non-zero on question failures
+— honest pass/fail reporting is the point. Final result: 10/10 PASS.
 
 ### Stress tests
 
-    python -m unittest tests/stress/test_corpus_integrity.py -v
-    python -m unittest tests/stress/test_api_failures.py -v
+python -m unittest tests/stress/test_corpus_integrity.py -v python -m unittest
+tests/stress/test_api_failures.py -v
 
 ## Architecture overview
 

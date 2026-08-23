@@ -1,6 +1,7 @@
 # AI Usage
 
-Disclosure of AI tooling used in this submission, as required by the Brite Spark 2026 participant handbook.
+Disclosure of AI tooling used in this submission, as required by the Brite Spark
+2026 participant handbook.
 
 ## Tools used
 
