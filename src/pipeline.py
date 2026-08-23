@@ -87,6 +87,18 @@ def _extract_dates(question: str) -> tuple[date, date | None]:
     to determination_date.  With only one date found, it's always
     determination_date and event_date stays None.
 
+    LIMITATION (Deliberate): For queries with 3+ dates (or multiple dates of the
+    same type), the parser assigns the first candidate not preceded by an event
+    phrase as determination_date and ignores subsequent ones. For example:
+      "If a change occurred in February 2026, and I was deciding it in March 2026,
+       what is the disregard for a claim spanning April 2026?"
+    Here, "February 2026" (event date) is parsed. If "March 2026" is the determination date,
+    but "spanning April 2026" appears later, the first non-event date (March) is chosen,
+    and subsequent dates are ignored. In a query like:
+      "Comparing April 2026 and February 2026, what is the disregard?"
+    "April 2026" would be incorrectly selected as determination_date simply because
+    it appears first, showing how the "first mentioned wins" heuristic has limitations.
+
     Returns:
         (determination_date, event_date)
         determination_date defaults to today if nothing is found.
@@ -358,6 +370,29 @@ class Pipeline:
                             f"If the change of circumstances occurred on or after 1 March 2026:\n"
                             f"{cv.new_text}"
                         )
+                    elif cv.apportionment or has_apportionment:
+                        old_txt = cv.old_text if cv.old_text else self.clause_index[result.clause_id].text
+                        post_effective_date = max(determination_date, date(2026, 3, 1))
+                        try:
+                            cv_post = resolve_clause(
+                                result.clause_id,
+                                determination_date=post_effective_date,
+                                event_date=event_date if event_date else post_effective_date,
+                                clause_index=self.clause_index,
+                                amendments=self.amendments,
+                            )
+                            new_txt = cv_post.text if cv_post.text else cv_post.new_text
+                        except KeyError:
+                            new_txt = cv.text
+                        if not new_txt:
+                            new_txt = cv.text
+                        result.clause_text = (
+                            f"[APPORTIONED VERSION - CLAIM SPANS 1 MARCH 2026 BOUNDARY]\n"
+                            f"For the portion of the claim period before 1 March 2026:\n"
+                            f"{old_txt}\n\n"
+                            f"For the portion of the claim period on or after 1 March 2026:\n"
+                            f"{new_txt}"
+                        )
                     elif cv.text is not None:
                         result.clause_text = cv.text
                 except KeyError:
@@ -425,7 +460,8 @@ class Pipeline:
             instructions.append(
                 "IMPORTANT: The claim/event period spans the 1 March 2026 amendment boundary. "
                 "Under §5.3 and §7.4.3, you must explicitly state in the answer that the claim spans the amendment boundary, "
-                "cite §5.3 and §7.4.3, and say that the award must be apportioned across the two rate periods. "
+                "cite §5.3 and §7.4.3 immediately when mentioning the boundary or apportionment, and say that the award must be apportioned across the two rate periods. "
+                "Make sure every sentence mentioning the date span, the boundary, or the apportionment contains an inline citation to (5.3) or (7.4.3). "
                 "Do not attempt to calculate or present a specific prorated/apportioned/calculated figure, "
                 "as that arithmetic is out of scope for this system."
             )

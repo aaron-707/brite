@@ -268,4 +268,6 @@ def resolve_clause(
         ambiguous=False,
         exists=True,
         apportionment=is_apportioned,
+        old_text=clause.text if is_apportioned else None,
+        new_text=text if is_apportioned else None,
     )

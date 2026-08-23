@@ -310,3 +310,22 @@ We modified `src/parser.py` to flush the active clause chunk immediately upon en
 ### Retrospective Note
 This was a pre-existing corpus-parsing bug that had been present since the project's inception. It means that the original submission's citation/Sources-block "verbatim text" guarantee was silently broken for 53 boundary clauses the whole time, not just during the amendment work.
 
+## 11. Reconciling Transitional Provisions §5.1 and §5.3
+
+### The Tension
+There is a potential tension between two transitional provisions in the Day-Two Amendment:
+- **§5.1**: "The amendments made by paragraphs 1, 3 and 4 apply to any determination made on or after 1 March 2026, including a determination in respect of a period before that date."
+- **§5.3**: "Where a claim relates to a period spanning 1 March 2026, the applicable figures are those in force on each day of the period, and the award is apportioned accordingly under §7.4.3."
+
+On a superficial reading, §5.1 might seem to suggest that any post-March determination unconditionally uses the new rates (e.g. `$175` earnings disregard under §6.4.1) for the entire claim period, even retrospectively. However, §5.3 explicitly demands that if the claim period *spans* 1 March 2026, the figures in force on each day must be applied, requiring proration.
+
+### Reconcilability Analysis
+These two rules are legally reconcilable under the principle of specificity (lex specialis derogat legi generali):
+1. **§5.1** sets the general rule for temporal applicability: determinations made on or after 1 March 2026 are subject to the amended rule set (paragraphs 1, 3, 4), even when assessing past periods.
+2. **§5.3** acts as a specific qualifier for the subset of claims whose period spans the 1 March 2026 boundary. Instead of applying the post-March rates retrospectively to the entire spanned period, it requires applying the pre-amendment rates for the portion before 1 March and the post-amendment rates for the portion on or after 1 March, followed by proration.
+3. If a claim period lies entirely before 1 March 2026 (but is determined on or after 1 March 2026), §5.3 is not triggered, and the general rule of §5.1 applies the new rates retrospectively.
+
+### Technical Implementation
+To respect this interaction, the pipeline resolver dynamically constructs and formats apportioned text for all amended clauses when a claim spans the boundary. This formatted text displays both pre-amendment and post-amendment rates (e.g. `$120` and `$175` for §6.4.1) labeled with their respective date periods. This ensures the synthesizer has access to both values to explain the proration correctly, and permits the citation validator to verify the facts from the source text.
+
+
