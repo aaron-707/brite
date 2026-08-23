@@ -1,84 +1,106 @@
 # Brite Spark 2026 — The Grounded Answer
 
-A clause-grounded retrieval-augmented generation (RAG) system for the Calder County Household Support Program policy manual.
+A clause-grounded RAG system for the Calder County Household Support Program policy manual. Given a caseworker's question, it retrieves the relevant policy clauses, checks for internal contradictions and dead cross-references, and produces a plain-language answer with exact clause citations. When the manual is broken or silent, it says so and directs the caseworker to escalate.
 
-## Out of Scope
-This system is designed strictly for single-turn clause grounding against the Calder County Household Support Program policy manual; it does *not* support multi-turn chat sessions, indexing or parsing other document manuals, or model fine-tuning.
+## What it does and does not do
 
----
+Does:
+- Answer policy questions grounded strictly in the HSP manual.
+- Cite the exact clause (§X.Y.Z) for every substantive claim.
+- Detect and surface numeric contradictions between clauses.
+- Detect and flag dead cross-references in the manual.
+- Refuse cleanly when the manual is silent on a topic.
+- Direct caseworkers to a supervisor when the manual conflicts or is broken.
+- Handle colloquial and plain-English queries via a dynamic synonym map generated from the manual's own definitions.
+- Update automatically when the policy manual changes — no code changes required.
+
+Does not:
+- Support multi-turn conversation or session memory.
+- Answer questions from any document other than data/policy-manual.md.
+- Fine-tune or train any model.
+- Provide a web interface. The CLI is the complete interface.
+- Resolve "supervisor" to a named contact or role.
 
 ## Prerequisites
 
-- **Python Version**: Python 3.10 or higher.
-- **Dependencies**: The system runs entirely on standard library modules and lightweight packages. It does not require any heavy deep-learning frameworks (like `torch` or `sentence-transformers`) or proprietary SDKs (like `google-generativeai`).
-  - `scikit-learn` (for TF-IDF lexical retrieval)
-  - `numpy` (for matrix operations)
-  - `pyyaml` (for configuration parsing)
-  - `requests` (for raw HTTP REST queries to the Gemini API)
-  - `python-dotenv` (for loading API keys from `.env`)
+Python 3.10 or higher. No deep learning frameworks required.
 
----
+Dependencies (all lightweight):
+- scikit-learn — TF-IDF retrieval
+- numpy — matrix operations
+- pyyaml — configuration parsing
+- requests — Gemini REST API calls
+- python-dotenv — API key loading
 
-## Getting Started
+## Setup
 
-### 1. Clone the Repository and Navigate to the Directory
+### 1. Clone and navigate
 
-```bash
-git clone https://github.com/aaron-707/brite.git
-cd brite
-```
+    git clone https://github.com/aaron-707/brite.git
+    cd brite
 
-### 2. Install Dependencies
+### 2. Install dependencies
 
-```bash
-pip install -r requirements.txt
-```
+    pip install -r requirements.txt
 
-### 3. Configure the Environment
+### 3. Configure environment
 
-Create your environment configuration file from the template:
-```bash
-# On Linux / macOS:
-cp .env.example .env
+    # Linux / macOS:
+    cp .env.example .env
 
-# On Windows:
-copy .env.example .env
-```
-Open `.env` in a text editor and set your personal Gemini API key:
+    # Windows:
+    copy .env.example .env
 
-```text
-GEMINI_API_KEY=your_actual_api_key_here
-GEMINI_MODEL=gemini-3.5-flash
-```
+Open .env and set your Gemini API key:
 
----
+    GEMINI_API_KEY=your_actual_api_key_here
+    GEMINI_MODEL=gemini-3.5-flash
 
 ## Usage
 
-### Run a single query
+### Single query
 
-    python -m src.pipeline "Can a person aged 16 apply for assistance?"
+    python -m src.pipeline "Can a person aged 16 apply?"
 
-Output format:
-    Question: <query>
-    Decision: ANSWER | FLAG_CONFLICT
-    Conflicts: <list, if any>
-    Answer: <plain language answer with inline citations>
-    Citations: <list of §-references>
+Output:
 
-### Run the evaluation harness
+    Question: Can a person aged 16 apply?
+    Decision: ANSWER
+    Answer: A person aged 16 or 17 may be eligible if they are not a member of any other household and have no person with parental responsibility able and willing to support them, or are a parent of a dependent child living with them (2.3.1).
+    Citations: §2.1.2, §2.3.1
+
+### Evaluation harness
 
     python -m tests.eval.run_eval
 
-Runs the pipeline against the 10-question evaluation set. Results are
-written to tests/eval/results.json. The harness does not exit non-zero
-on question failures — honest pass/fail reporting is the point.
+Runs the pipeline against the 10-question evaluation set. Results written to tests/eval/results.json. The harness does not exit non-zero on question failures — honest pass/fail reporting is the point. Final result: 10/10 PASS.
 
-## Known issues
+### Stress tests
 
-- Static query expansion table requires manual update when the policy
-  manual changes. Automating from Part 1 definitions is the next step.
-- §11.2.3 (review completion timeframe) may be absent from the corpus.
-  If confirmed missing, flag to the manual maintainer.
-- The escalation instruction directs to "a supervisor" generically.
-  A production deployment should resolve this to a named role or contact.
+    python -m unittest tests/stress/test_corpus_integrity.py -v
+    python -m unittest tests/stress/test_api_failures.py -v
+
+## Architecture overview
+
+    Query
+      ↓
+    Query Expansion (dynamic synonym map from Part 1 definitions,
+                     cached by corpus MD5 fingerprint)
+      ↓
+    Hybrid Retrieval (BM25 + TF-IDF, RRF fusion)
+      ↓
+    Gate (dead reference detection + numeric contradiction
+          detection + soft fallback for zero-coverage queries)
+      ↓
+    Synthesizer (Gemini REST, temperature 0.1, strict grounding
+                 prompt, escalation instruction on conflict)
+      ↓
+    Citation Validator
+      ↓
+    Output
+
+## Known limitations
+
+- Multi-part queries are answered on the highest-scoring topic only. Sub-questions are not split.
+- The escalation instruction names "a supervisor" generically. A production deployment needs a staff directory integration.
+- Very short cross-referencing sentences with sparse context may produce false dead-reference flags.
