@@ -146,6 +146,16 @@ class Pipeline:
             synth_output = self.synthesizer.generate(
                 question, results, gate_decision, correction=correction
             )
+            if isinstance(synth_output, dict):
+                return PipelineResult(
+                    question=question,
+                    decision=synth_output.get("decision", "REFUSE"),
+                    answer=synth_output.get("answer", ""),
+                    citations=synth_output.get("citations", []),
+                    gate_decision=gate_decision,
+                    validation=ValidationResult(valid=False, errors=["API error"]),
+                    retrieval_results=results,
+                )
             last_output = synth_output
 
             validation = self.validator.validate(synth_output, results)

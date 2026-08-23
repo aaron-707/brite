@@ -188,26 +188,61 @@ class Synthesizer:
             "Content-Type": "application/json",
         }
 
-        # Call the API with exponential backoff on 429 rate limit errors
-        import time
-        max_api_attempts = 3
-        backoff = 2.0
-        backoff_cap = 16.0
-        for attempt in range(max_api_attempts):
-            resp = requests.post(url, json=body, headers=headers, timeout=60)
-            if resp.status_code == 429:
-                sleep_time = min(backoff, backoff_cap)
-                time.sleep(sleep_time)
-                backoff *= 2.0
-                continue
-            resp.raise_for_status()
-            break
-        else:
-            resp.raise_for_status()
+        try:
+            # Call the API with exponential backoff on 429 rate limit errors
+            import time
+            max_api_attempts = 3
+            backoff = 2.0
+            backoff_cap = 16.0
+            for attempt in range(max_api_attempts):
+                resp = requests.post(url, json=body, headers=headers, timeout=60)
+                if resp.status_code == 429:
+                    if attempt < max_api_attempts - 1:
+                        sleep_time = min(backoff, backoff_cap)
+                        time.sleep(sleep_time)
+                        backoff *= 2.0
+                        continue
+                resp.raise_for_status()
+                break
+            else:
+                resp.raise_for_status()
 
-        raw = resp.json()
+            raw = resp.json()
+            return self._parse_response(raw)
 
-        return self._parse_response(raw)
+        except (requests.exceptions.Timeout,
+                requests.exceptions.ConnectionError) as e:
+            return {
+                "decision": "REFUSE",
+                "answer": "The system is temporarily unavailable. "
+                          "Please try again or contact your supervisor.",
+                "citations": [],
+                "conflicts": []
+            }
+        except requests.exceptions.HTTPError as e:
+            return {
+                "decision": "REFUSE",
+                "answer": f"The system is temporarily unavailable (HTTP error {e.response.status_code if e.response is not None else 'unknown'}). "
+                          "Please try again or contact your supervisor.",
+                "citations": [],
+                "conflicts": []
+            }
+        except ValueError as e:
+            return {
+                "decision": "REFUSE",
+                "answer": "The system received an unexpected response. "
+                          "Please try again or contact your supervisor.",
+                "citations": [],
+                "conflicts": []
+            }
+        except Exception as e:
+            return {
+                "decision": "REFUSE",
+                "answer": f"An unexpected error occurred: {str(e)}. "
+                          "Please try again or contact your supervisor.",
+                "citations": [],
+                "conflicts": []
+            }
 
     def _parse_response(self, raw: dict) -> SynthesizerOutput:
         """Extract answer and citations from the Gemini response JSON."""
