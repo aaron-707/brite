@@ -295,3 +295,18 @@ If a query's date range spans the 1 March 2026 boundary, the system sets `has_ap
 
 ### Retrospective Design Note: What I'd Do Differently
 If I had known the amendment was coming, I would have made **clause versions** a first-class concept in the parser and database from day one, rather than bolting them onto retriever outputs as a post-retrieval overlay patch. Storing clauses as a temporal range database (`[start_date, end_date)`) and indexing every historical version separately in the retriever would have made the gating and retrieval logic completely natural and unified, rather than requiring dynamic text patching and synthetic document injections.
+
+## 10. Corpus Clause-Boundary Parsing Bug (Commit 8daec3e)
+
+### The Bug
+The chunking parser in `src/parser.py` was originally designed to split chunks solely by matching `**X.Y.Z**` clause markers. Consequently, markdown Part headers (`#`) and Section headers (`##`) separating different Parts of the manual were accumulated into the text of the final clause of the preceding section. This bug silently corrupted **53 clauses** across the entire corpus.
+
+### Discovery
+The bug existed since day one but was completely invisible because none of the previous evaluation questions or manual queries returned raw clause-text segments that were closely inspected at the boundary transitions. It was only discovered when §7.4.3 was dynamically retrieved and loaded for the claim apportionment feature, which surfaced the trailing Part 8 header leakage.
+
+### The Fix
+We modified `src/parser.py` to flush the active clause chunk immediately upon encountering any line starting with `#` (indicating a Part or Section header). The parser also strips any trailing formatting separators (such as empty lines and `---` horizontal rules) before saving the clause. A corpus-wide check now validates that exactly **0** parsed clauses contain a `#` or `##` header anywhere in their text.
+
+### Retrospective Note
+This was a pre-existing corpus-parsing bug that had been present since the project's inception. It means that the original submission's citation/Sources-block "verbatim text" guarantee was silently broken for 53 boundary clauses the whole time, not just during the amendment work.
+
