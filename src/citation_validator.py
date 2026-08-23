@@ -137,9 +137,23 @@ class CitationValidator:
                 continue
 
             # Skip meta-commentary sentences explaining policy conflicts
-            conflict_keywords = ["contradiction", "conflict", "inconsistent", "discrepancy", "contradict", "operative rule", "downstream consequence"]
-            if any(k in lower for k in conflict_keywords):
-                continue
+            meta_phrases = [
+                "there is a conflict",
+                "these two clauses present",
+                "these values are inconsistent",
+                "this numeric contradiction",
+                "regarding this numeric contradiction",
+                "is the operative rule",
+                "is the downstream consequence",
+            ]
+            if any(p in lower for p in meta_phrases):
+                has_other_indicators = (
+                    "$" in stripped or
+                    any(re.search(r"\b" + p + r"\b", lower) for p in ["must", "shall", "may not", "is required", "is not eligible", "is eligible"])
+                )
+                if not has_other_indicators:
+                    continue
+
 
 
             # Skip very short sentences (likely fragments)
@@ -203,8 +217,12 @@ class CitationValidator:
                     # If the only digits in this uncited sentence are query-derived digits
                     # or clause ID digits, and there is no dollar sign or policy modal verb,
                     # treat it as a non-factual structural restatement.
-                    sent_digits = {t for t in sent_tokens if t.isdigit()}
-                    non_query_clause_digits = sent_digits - query_digits - clause_id_digits
+                    # Only exclude 4-digit query-derived digits (years) to allow years
+                    # to be treated as non-factual temporal context, while retaining shorter
+                    # thresholds (e.g. 45 days) as factual.
+                    query_years = {d for d in query_digits if len(d) == 4}
+                    non_query_clause_digits = sent_digits - query_years - clause_id_digits
+
                     if not non_query_clause_digits:
                         has_other_indicators = (
                             "$" in stripped or

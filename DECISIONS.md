@@ -178,15 +178,16 @@ self-contained. A single static threshold is a known simplification.
 ## 4. Synthesizer (Commit cf6c919)
 
 Implementation: Google Gemini REST API via raw requests. Model:
-gemini-3.1-flash-lite. Temperature: 0.1.
+gemini-flash-lite-latest. Temperature: 0.1.
 
 What I rejected: google-generativeai SDK. Adds a bulky dependency with its own
 version management surface. Raw requests gives identical capability with one
 fewer dependency.
 
-Why gemini-3.1-flash-lite over newer models: standard generation config parameters
+Why gemini-flash-lite-latest over newer models: standard generation config parameters
 (temperature, top_p, top_k) are reliably supported. Preview models have
 inconsistent config support which breaks the determinism this system requires.
+
 
 ### Refusal and Conflict Output Design
 
