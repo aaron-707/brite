@@ -339,5 +339,8 @@ These two rules are legally reconcilable under the principle of specificity (lex
 2. **§5.3** acts as a specific qualifier for the subset of claims whose period spans the 1 March 2026 boundary. Instead of applying the post-March rates retrospectively to the entire spanned period, it requires applying the pre-amendment rates for the portion before 1 March and the post-amendment rates for the portion on or after 1 March, followed by proration.
 3. If a claim period lies entirely before 1 March 2026 (but is determined on or after 1 March 2026), §5.3 is not triggered, and the general rule of §5.1 applies the new rates retrospectively.
 
+#### Technical Implementation
+To respect this interaction, the pipeline resolver dynamically constructs and formats apportioned text for all amended clauses when a claim spans the boundary. This formatted text displays both pre-amendment and post-amendment rates (e.g. `$120` and `$175` for §6.4.1) labeled with their respective date periods. This ensures the synthesizer has access to both values to explain the proration correctly, and permits the citation validator to verify the facts from the source text.
+
 ### Retrospective Design Note: What I'd Do Differently
 If I had known the amendment was coming, I would have made **clause versions** a first-class concept in the parser and database from day one, rather than bolting them onto retriever outputs as a post-retrieval overlay patch. Storing clauses as a temporal range database (`[start_date, end_date)`) and indexing every historical version separately in the retriever would have made the gating and retrieval logic completely natural and unified, rather than requiring dynamic text patching and synthetic document injections.
