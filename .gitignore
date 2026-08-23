@@ -32,3 +32,8 @@ models/
 
 # Cache artifacts
 data/.expansion_cache.json
+
+# Local files
+1/
+*.pdf
+
