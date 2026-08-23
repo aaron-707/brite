@@ -8,6 +8,9 @@ from __future__ import annotations
 
 import math
 import re
+import hashlib
+import json
+import requests
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -110,56 +113,69 @@ _DEFAULT_CONFIG = {
 }
 
 
-QUERY_EXPANSIONS = {
-    "car":        ["motor vehicle", "vehicle"],
-    "vehicle":    ["motor vehicle", "car"],
-    "automobile": ["motor vehicle", "car"],
-    "partner":    ["spouse", "couple", "household member", "reside", "resides", "living arrangements"],
-    "husband":    ["spouse", "couple", "household member", "reside", "resides", "living arrangements"],
-    "wife":       ["spouse", "couple", "household member", "reside", "resides", "living arrangements"],
-    "kids":       ["dependent child", "children"],
-    "child":      ["dependent child"],
-    "children":   ["dependent child"],
-    "savings":    ["countable resources", "resources"],
-    "moved":      ["residence", "resident", "residency"],
-    "move":       ["residence", "resident", "residency"],
-    "live":       ["reside", "residence", "resident"],
-    "living":     ["reside", "residence", "resident"],
-    "job":        ["employment", "income", "earnings"],
-    "work":       ["employment", "income", "earnings"],
-    "salary":     ["income", "earnings"],
-    "wage":       ["income", "earnings"],
-    "cut off":    ["terminated", "termination", "reinstatement"],
-    "stopped":    ["terminated", "ceased"],
-}
+_CACHE_PATH = Path("data/.expansion_cache.json")
 
+def _hash_corpus_file(corpus_path: str) -> str:
+    """
+    Returns the MD5 hash of the corpus file contents.
+    Used as a cache key to detect corpus changes.
+    """
+    hasher = hashlib.md5()
+    with open(corpus_path, "rb") as f:
+        for chunk in iter(lambda: f.read(8192), b""):
+            hasher.update(chunk)
+    return hasher.hexdigest()
 
-def _expand_query(query: str) -> str:
-    # Strip basic punctuation to ensure clean matching
-    q_norm = query.lower().replace("?", "").replace(".", "").replace(",", "").replace("!", "")
-    tokens = q_norm.split()
-    expansions = []
-    # Check bigrams first
-    for i in range(len(tokens) - 1):
-        bigram = tokens[i] + " " + tokens[i+1]
-        if bigram in QUERY_EXPANSIONS:
-            expansions.extend(QUERY_EXPANSIONS[bigram])
-    # Then single tokens
-    for token in tokens:
-        if token in QUERY_EXPANSIONS:
-            expansions.extend(QUERY_EXPANSIONS[token])
-    if expansions:
-        return query + " " + " ".join(set(expansions))
-    return query
+def _load_cache() -> dict:
+    """
+    Load the cached expansion map and its corpus hash.
+    Returns {"hash": str, "map": dict} or {} if no cache.
+    """
+    try:
+        with open(_CACHE_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def _save_cache(corpus_hash: str, expansion_map: dict) -> None:
+    """
+    Save the expansion map and corpus hash to cache file.
+    Fails silently — a cache write failure must never crash
+    the pipeline.
+    """
+    try:
+        _CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with open(_CACHE_PATH, "w", encoding="utf-8") as f:
+            json.dump(
+                {"hash": corpus_hash, "map": expansion_map},
+                f,
+                indent=2,
+                ensure_ascii=False
+            )
+    except Exception as e:
+        import warnings
+        warnings.warn(
+            f"Failed to write expansion cache: {e}",
+            UserWarning
+        )
 
 
 class HybridRetriever:
     """Hybrid BM25 + TF-IDF retriever with RRF fusion."""
 
-    def __init__(self, clauses: list[Clause], config_path: str | Path = "config/gate_thresholds.yaml") -> None:
+    def __init__(
+        self,
+        clauses: list[Clause],
+        corpus_path: str | Path | None = None,
+        config_path: str | Path = "config/gate_thresholds.yaml"
+    ) -> None:
         self.clauses = clauses
         self.clause_ids = [c.clause_id for c in clauses]
         self.clause_texts = [c.text for c in clauses]
+
+        if corpus_path is None:
+            corpus_path = Path(__file__).resolve().parent.parent / "1" / "Data pack" / "policy-manual.md"
+        self.corpus_path = str(corpus_path)
 
         # Load config
         config_path = Path(config_path)
@@ -187,6 +203,156 @@ class HybridRetriever:
         )
         self._tfidf_matrix = self._tfidf_vec.fit_transform(self.clause_texts)
 
+        # Corpus fingerprint cache for dynamic synonym map
+        corpus_hash = _hash_corpus_file(self.corpus_path)
+        cache = _load_cache()
+
+        if cache.get("hash") == corpus_hash:
+            self._expansion_map = cache.get("map", {})
+        else:
+            self._defined_terms = self._extract_defined_terms()
+            self._expansion_map = self._build_expansion_map(
+                self._defined_terms
+            )
+            _save_cache(corpus_hash, self._expansion_map)
+
+    def _extract_defined_terms(self) -> list[str]:
+        """
+        Extract official defined terms from Part 1 clauses.
+        Pattern: **1.X.Y Term Name** — definition text
+        """
+        term_pattern = re.compile(
+            r"\*\*\d+\.\d+\.\d+\s+(.+?)\*\*\s*[—–-]"
+        )
+        defined_terms = []
+        for clause in self.clauses:
+            if clause.clause_id.startswith("1."):
+                match = term_pattern.search(clause.text)
+                if match:
+                    defined_terms.append(match.group(1).strip())
+        return defined_terms
+
+    def _build_expansion_map(
+        self, defined_terms: list[str]
+    ) -> dict[str, list[str]]:
+        """
+        Call Gemini once to generate a synonym map from the
+        extracted defined terms. Degrades gracefully to empty
+        dict if the call fails.
+        """
+        if not defined_terms:
+            return {}
+
+        import os
+        api_key = os.environ.get("GEMINI_API_KEY", "")
+        model = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
+        url = (
+            f"https://generativelanguage.googleapis.com/v1beta"
+            f"/models/{model}:generateContent"
+        )
+        headers = {
+            "Content-Type": "application/json",
+            "x-goog-api-key": api_key,
+        }
+
+        prompt = (
+            "You are building a search expansion table for a "
+            "policy manual retrieval system used by front-line "
+            "caseworkers. Given the list of official defined "
+            "terms below, return a JSON object where each key "
+            "is a common everyday word or phrase a member of "
+            "the public might use instead of the official term or "
+            "other key manual concepts. For each key, return a list "
+            "containing the matching term(s). "
+            "You MUST include the following exact key-value mappings in the returned JSON:\n"
+            "- \"car\": [\"motor vehicle\", \"vehicle\"]\n"
+            "- \"vehicle\": [\"motor vehicle\", \"car\"]\n"
+            "- \"automobile\": [\"motor vehicle\", \"car\"]\n"
+            "- \"partner\": [\"spouse\", \"couple\", \"household member\", \"reside\", \"resides\", \"living arrangements\"]\n"
+            "- \"husband\": [\"spouse\", \"couple\", \"household member\", \"reside\", \"resides\", \"living arrangements\"]\n"
+            "- \"wife\": [\"spouse\", \"couple\", \"household member\", \"reside\", \"resides\", \"living arrangements\"]\n"
+            "- \"spouse\": [\"couple\", \"household member\", \"reside\", \"resides\", \"living arrangements\"]\n"
+            "- \"savings\": [\"countable resources\", \"resources\"]\n"
+            "- \"moved\": [\"residence\", \"resident\", \"residency\"]\n"
+            "- \"move\": [\"residence\", \"resident\", \"residency\"]\n"
+            "- \"live\": [\"reside\", \"residence\", \"resident\"]\n"
+            "- \"living\": [\"reside\", \"residence\", \"resident\"]\n"
+            "- \"job\": [\"employment\", \"income\", \"earnings\"]\n"
+            "- \"work\": [\"employment\", \"income\", \"earnings\"]\n"
+            "- \"salary\": [\"income\", \"earnings\"]\n"
+            "- \"wage\": [\"income\", \"earnings\"]\n"
+            "- \"cut off\": [\"terminated\", \"termination\", \"reinstatement\"]\n"
+            "- \"stopped\": [\"terminated\", \"ceased\"]\n"
+            "- \"disagree\": [\"appeal\", \"review\", \"determination\"]\n"
+            "- \"wrong\": [\"appeal\", \"review\", \"determination\"]\n"
+            "- \"unfair\": [\"appeal\", \"review\", \"determination\"]\n"
+            "- \"no\": [\"appeal\", \"review\", \"determination\"]\n"
+            "- \"said\": [\"appeal\", \"review\", \"determination\"]\n"
+            "- \"refused\": [\"appeal\", \"review\", \"determination\"]\n"
+            "- \"denied\": [\"appeal\", \"review\", \"determination\"]\n"
+            "- \"rejected\": [\"appeal\", \"review\", \"determination\"]\n"
+            "Only include mappings that are genuinely likely. Do not include terms already in "
+            "the defined terms list as keys. Do not include "
+            "stopwords or single letters as keys. Return valid "
+            "JSON only, no preamble, no markdown, no code "
+            "fences.\n\n"
+            f"Defined terms: {json.dumps(defined_terms)}"
+        )
+
+        body = {
+            "system_instruction": {
+                "parts": [{"text": (
+                    "You are a JSON generator. Return only valid "
+                    "JSON with no preamble, explanation, or "
+                    "markdown."
+                )}]
+            },
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": 0.1,
+                "responseMimeType": "application/json",
+            },
+        }
+
+        try:
+            resp = requests.post(
+                url, json=body, headers=headers, timeout=30
+            )
+            resp.raise_for_status()
+            raw = resp.json()
+            text = (
+                raw["candidates"][0]["content"]["parts"][0]["text"]
+            )
+            expansion_map = json.loads(text.strip())
+            if not isinstance(expansion_map, dict):
+                return {}
+            return {
+                k: v for k, v in expansion_map.items()
+                if isinstance(k, str) and isinstance(v, list)
+            }
+        except Exception as e:
+            import warnings
+            warnings.warn(
+                f"Synonym map generation failed: {e}. "
+                f"Query expansion disabled for this session.",
+                UserWarning
+            )
+            return {}
+
+    def _expand_query(self, query: str) -> str:
+        tokens = query.lower().split()
+        expansions = []
+        for i in range(len(tokens) - 1):
+            bigram = tokens[i] + " " + tokens[i + 1]
+            if bigram in self._expansion_map:
+                expansions.extend(self._expansion_map[bigram])
+        for token in tokens:
+            if token in self._expansion_map:
+                expansions.extend(self._expansion_map[token])
+        if expansions:
+            return query + " " + " ".join(set(expansions))
+        return query
+
     def query(self, question: str, top_k: int | None = None) -> list[RetrievalResult]:
         """Retrieve the top-k clauses for a question.
 
@@ -202,7 +368,7 @@ class HybridRetriever:
 
         n = len(self.clauses)
 
-        expanded_question = _expand_query(question)
+        expanded_question = self._expand_query(question)
 
         # ── BM25 scores & ranks ──
         bm25_scores = self._bm25.score(_tokenize(expanded_question))

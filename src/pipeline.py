@@ -60,7 +60,7 @@ class Pipeline:
         self.clause_index = build_clause_index(self.clauses)
 
         # Initialize components
-        self.retriever = HybridRetriever(self.clauses, config_path=config_path)
+        self.retriever = HybridRetriever(self.clauses, corpus_path=corpus_path, config_path=config_path)
         self.gate = Gate(config_path=config_path)
         self.synthesizer = Synthesizer(config_path=config_path)
         self.validator = CitationValidator(config_path=config_path)
@@ -116,8 +116,7 @@ class Pipeline:
                 )
 
         # Step 1: Retrieve
-        from .retriever import _expand_query
-        expanded_question = _expand_query(question)
+        expanded_question = self.retriever._expand_query(question)
         results = self.retriever.query(expanded_question)
 
         # Step 2: Gate

@@ -69,18 +69,30 @@ What I would fix first if given more time: the refusal path currently does not t
 
 ## 6. Retriever — Query Expansion (post-eval fix)
 
-- **Problem found in eval**: Two queries failed retrieval because the
-  query vocabulary did not match the manual's vocabulary. "Car" is not
-  in the manual — "motor vehicle" is (§2.4.2). "How long does the
-  Department have to complete a review" did not surface §11.2.3 with
-  sufficient score.
-- **Fix**: A lightweight static query expansion table maps common
-  synonyms to the manual's actual terminology before the query reaches
-  BM25 and TF-IDF. No external dependencies added.
-- **Trade-off**: A static expansion table requires manual maintenance
-  as the corpus changes. A production system would use the manual's
-  own definitions section (Part 1) to build the expansion table
-  automatically. This is the first thing to automate in a v2.
+The static synonym table has been replaced with a dynamic
+expansion map generated from the manual's own Part 1
+definitions at startup. The map is built by extracting
+defined terms from §1.X.Y clauses and making a single
+Gemini API call to generate common everyday synonyms for
+each official term.
+
+To avoid an API call on every pipeline run, the generated
+map is cached at data/.expansion_cache.json alongside an
+MD5 hash of the corpus file. On startup the retriever
+compares the current corpus hash against the cached hash.
+If they match, the map is loaded from cache with no API
+call. If they differ (corpus updated), the map is
+regenerated and the cache is overwritten.
+
+This means the expansion table updates automatically when
+the manual changes quarterly, requires zero manual
+maintenance, and costs one Gemini API call per corpus
+update rather than per query.
+
+Failure mode: if the Gemini call fails at startup, the
+retriever degrades gracefully to an empty expansion map
+and emits a warning. The pipeline continues without query
+expansion — the soft fallback handles zero-coverage queries.
 
 ## 7. Gate — Numeric Contradiction Detector Redesign (post-eval fix)
 

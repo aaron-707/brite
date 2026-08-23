@@ -29,3 +29,6 @@ Thumbs.db
 models/
 *.bin
 *.onnx
+
+# Cache artifacts
+data/.expansion_cache.json
