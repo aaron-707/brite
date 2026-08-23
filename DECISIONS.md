@@ -183,6 +183,32 @@ for each fix are recorded here.
 - U05 (min/max): Correctly stated the $25 minimum and honestly said
   no maximum is stated.
 
+### Day-two change simulation
+
+The pipeline was tested against a simulated day-two corpus update
+involving three simultaneous changes: a modified numeric value
+(§2.4.1 resource limit $4,000 → $5,000), a new clause added
+(§7.3.4 full-time student needs reduction), and a deleted clause
+(§3.2.3 temporary absence for education).
+
+Results:
+- Modified value: Pipeline picked up $5,000 immediately with no
+  code changes. The corpus re-indexes on every run so there is
+  no stale cache to invalidate.
+- New clause: §7.3.4 resolved the §7.1.3 dead reference. The
+  full-time student query correctly returned ANSWER instead of
+  FLAG_CONFLICT with no code changes.
+- Deleted clause: Pipeline handled the missing clause gracefully.
+  Queries that previously cited §3.2.3 either retrieved adjacent
+  clauses or honestly stated the information was not available.
+- 10-question eval: 9/10 passed after
+  corpus change, no code changes.
+
+This confirms the architecture is corpus-independent. The parser,
+retriever, and gate all re-derive their state from the raw corpus
+file on each run. No hardcoded clause IDs or values exist in the
+pipeline code.
+
 ### Key architectural decision — expansion table scope
 
 Two approaches to vocabulary mismatch were considered and rejected
