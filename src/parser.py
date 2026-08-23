@@ -99,3 +99,30 @@ def build_clause_index(clauses: list[Clause]) -> dict[str, Clause]:
         else:
             clause_index[clause_id] = c
     return clause_index
+
+
+# Matches lines like "# Part 3 — Residence" or "## Part 3 — Residence"
+_PART_HEADING_RE = re.compile(r"^#{1,2}\s+(Part\s+(\d+)[^\n]*)", re.MULTILINE)
+
+
+def parse_part_headings(path: str | Path | None = None) -> dict[int, str]:
+    """Return a mapping of part number -> heading string.
+
+    Example: {1: "Part 1 — Scope and Definitions", 2: "Part 2 — General Conditions of Eligibility", ...}
+    """
+    if path is None:
+        path = Path(__file__).resolve().parent.parent / "1" / "Data pack" / "policy-manual.md"
+    else:
+        path = Path(path)
+
+    if not path.exists():
+        return {}
+
+    text = path.read_text(encoding="utf-8")
+    headings: dict[int, str] = {}
+    for m in _PART_HEADING_RE.finditer(text):
+        heading_text = m.group(1).strip()
+        part_num = int(m.group(2))
+        if part_num not in headings:
+            headings[part_num] = heading_text
+    return headings

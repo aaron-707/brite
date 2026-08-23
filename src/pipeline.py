@@ -14,7 +14,7 @@ import re
 
 from .citation_validator import CitationValidator, ValidationResult
 from .gate import Gate, GateDecision
-from .parser import Clause, build_clause_index, parse_corpus
+from .parser import Clause, build_clause_index, parse_corpus, parse_part_headings
 from .retriever import HybridRetriever, RetrievalResult
 from .synthesizer import Synthesizer, SynthesizerOutput
 
@@ -58,6 +58,7 @@ class Pipeline:
         # Parse corpus once
         self.clauses = parse_corpus(corpus_path)
         self.clause_index = build_clause_index(self.clauses)
+        self.part_headings = parse_part_headings(corpus_path)
 
         # Initialize components
         self.retriever = HybridRetriever(self.clauses, corpus_path=corpus_path, config_path=config_path)
@@ -198,12 +199,38 @@ class Pipeline:
 
 
 def main() -> None:
-    """CLI entry point."""
-    if len(sys.argv) < 2:
-        print("Usage: python -m src.pipeline \"<question>\"")
+    """CLI entry point.
+
+    Usage:
+        python -m src.pipeline "<question>"
+        python -m src.pipeline --source §4.3.2
+    """
+    args = sys.argv[1:]
+
+    # ── --source §X.Y.Z fast-path ─────────────────────────────────────────
+    if args and args[0] == "--source":
+        if len(args) < 2:
+            print("Usage: python -m src.pipeline --source §X.Y.Z")
+            sys.exit(1)
+        raw_id = args[1].lstrip("§")
+        pipeline = Pipeline()
+        clause = pipeline.clause_index.get(raw_id)
+        if not clause:
+            print(f"Clause §{raw_id} not found in the policy manual.")
+            sys.exit(1)
+        part_heading = pipeline.part_headings.get(clause.part(), f"Part {clause.part()}")
+        print(f"{part_heading}\n")
+        print(f"§{clause.clause_id}\n")
+        print(clause.text)
+        return
+
+    # ── Normal question path ───────────────────────────────────────────────
+    if not args:
+        print('Usage: python -m src.pipeline "<question>"')
+        print("       python -m src.pipeline --source §X.Y.Z")
         sys.exit(1)
 
-    question = " ".join(sys.argv[1:])
+    question = " ".join(args)
     print(f"Question: {question}\n")
 
     pipeline = Pipeline()
@@ -229,8 +256,12 @@ def main() -> None:
         for clause_id in result.citations:
             clause = pipeline.clause_index.get(clause_id)
             if clause:
-                print(f"\n  §{clause_id}: {clause.text[:300]}"
-                      f"{'...' if len(clause.text) > 300 else ''}")
+                part_heading = pipeline.part_headings.get(clause.part(), f"Part {clause.part()}")
+                print(f"\n  [{part_heading}]")
+                print(f"  §{clause_id}:")
+                # Indent the full clause text for readability
+                for line in clause.text.splitlines():
+                    print(f"    {line}")
     if result.validation and not result.validation.valid:
         print(f"\nValidation errors: {result.validation.errors}")
 
