@@ -321,9 +321,44 @@ currently warnings are emitted for duplicate IDs but ingest continues. A
 production system should reject a malformed corpus and alert the maintainer
 before serving any queries.
 
+## Day 2: The Change
+
+This section records the chronological integration of the Day 2 system changes, demonstrating the modular scalability of the architecture.
+
+### 1. What Arrived
+The `amendment-2026-01.md` document was introduced, containing:
+- An update to the earnings disregard from $120 to $175 per month (§6.4.1(a)).
+- Alignment of the reporting window deadline from a conflicting 10/30 days to 14 days (§4.3.2 and §9.1.4).
+- Substituted monthly income threshold values in §6.6.1.
+- Sanction rate reduction from 20% to 15% (§10.5.2).
+- A new exception preventing sanctions for failing to report changes that would increase the award (§10.5.3A).
+- Transitional provisions for claims spanning the 1 March 2026 boundary (§5.3 / §7.4.3).
+
+### 2. Which Module Absorbed It
+A new **temporal resolver** module (`src/temporal.py`) was introduced as a clean overlay layer between retrieval and the gate/synthesizer stages. It version-controls clause text based on the determination and event dates before they are evaluated. 
+
+Importantly, **the original retriever, gate, and synthesizer internals did not need to be rewritten**. They held exactly as designed and operated transparently on the temporally resolved clause texts passed down the pipeline.
+
+### 3. Evidence Table (Clean-Clone Test)
+The following outcomes were verified via a genuine clean-clone test executed on 2026-08-24, confirming correct historical and transitional behaviors:
+
+| Determination date | Event date | Result |
+|---|---|---|
+| 2026-02-15 | (pre-amendment) | FLAG_CONFLICT -- 10 vs 30 days |
+| 2026-04-15 | not specified | FLAG_CONFLICT -- correctly refuses to guess which version applies without an event date |
+| 2026-04-15 | 2026-03-15 | ANSWER -- clean 14 days, aligned |
+
+### 4. What Did Not Need to Change
+The separation of concerns was validated as the following components remained entirely unmodified by the amendment integration:
+- `src/parser.py`: The corpus structure parsing logic did not need any amendments.
+- `src/retriever.py` (BM25 and TF-IDF engine / RRF Rank Fusion): Kept identical logic for indexing and scoring documents.
+
+This provides direct evidence that the modular design successfully insulated the system's core RAG flow from complex business logic changes.
+
 ## 9. Day-Two Amendment Integration (Commit 02c41f5 and subsequent commits)
 
 ### Temporal Resolver Design
+
 To support the January 2026 amendment (`amendment-2026-01.md`), we built a temporal resolver (`src/temporal.py`) with a `resolve_clause` function. Given the determination date and event date, it resolves the correct version of any clause.
 - **Transitional Rules**: Paragraph 2 amendments are event-date anchored (§5.2); Paragraphs 1, 3, and 4 are determination-date anchored (§5.1).
 - **Ambiguity Handling**: If a post-March query does not specify an event date, the resolver returns `ambiguous=True`, setting `text=None` and populating `old_text` and `new_text`. In-place patching in `src/pipeline.py` formats the retrieved clause text to show both versions side-by-side and injects a dynamic prompt warning the synthesizer that it must state the dependency and not pick a single-value answer.
@@ -379,37 +414,4 @@ To respect this interaction, the pipeline resolver dynamically constructs and fo
 ### Retrospective Design Note: What I'd Do Differently
 If I had known the amendment was coming, I would have made **clause versions** a first-class concept in the parser and database from day one, rather than bolting them onto retriever outputs as a post-retrieval overlay patch. Storing clauses as a temporal range database (`[start_date, end_date)`) and indexing every historical version separately in the retriever would have made the gating and retrieval logic completely natural and unified, rather than requiring dynamic text patching and synthetic document injections.
 
-## Day 2: The Change
-
-This section records the chronological integration of the Day 2 system changes, demonstrating the modular scalability of the architecture.
-
-### 1. What Arrived
-The `amendment-2026-01.md` document was introduced, containing:
-- An update to the earnings disregard from $120 to $175 per month (§6.4.1(a)).
-- Alignment of the reporting window deadline from a conflicting 10/30 days to 14 days (§4.3.2 and §9.1.4).
-- Substituted monthly income threshold values in §6.6.1.
-- Sanction rate reduction from 20% to 15% (§10.5.2).
-- A new exception preventing sanctions for failing to report changes that would increase the award (§10.5.3A).
-- Transitional provisions for claims spanning the 1 March 2026 boundary (§5.3 / §7.4.3).
-
-### 2. Which Module Absorbed It
-A new **temporal resolver** module (`src/temporal.py`) was introduced as a clean overlay layer between retrieval and the gate/synthesizer stages. It version-controls clause text based on the determination and event dates before they are evaluated. 
-
-Importantly, **the original retriever, gate, and synthesizer internals did not need to be rewritten**. They held exactly as designed and operated transparently on the temporally resolved clause texts passed down the pipeline.
-
-### 3. Evidence Table (Clean-Clone Test)
-The following outcomes were verified via a genuine clean-clone test executed on 2026-08-24, confirming correct historical and transitional behaviors:
-
-| Determination Date | Event Date | Result |
-|---|---|---|
-| `2026-02-15` | (pre-amendment) | `FLAG_CONFLICT` — Surfaced the pre-March 10 vs. 30 days reporting deadline conflict. |
-| `2026-04-15` | *Not Specified* | `FLAG_CONFLICT` — Correctly flagged ambiguity and refused to guess which version of the deadline applied without an event date. |
-| `2026-04-15` | `2026-03-15` | `ANSWER` — Resolved to a clean, aligned 14-day requirement. |
-
-### 4. What Did Not Need to Change
-The separation of concerns was validated as the following components remained entirely unmodified by the amendment integration:
-- `src/parser.py`: The corpus structure parsing logic did not need any amendments.
-- `src/retriever.py` (BM25 and TF-IDF engine / RRF Rank Fusion): Kept identical logic for indexing and scoring documents.
-
-This provides direct evidence that the modular design successfully insulated the system's core RAG flow from complex business logic changes.
 
