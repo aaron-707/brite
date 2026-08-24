@@ -103,8 +103,8 @@ Output:
 ```
 Question: Under §6.4.1, how much of household earnings from employment is disregarded?
 Decision: ANSWER
-Answer: The first $175 per month of household earnings from employment is disregarded (§6.4.1). This disregard applies once per household and not once per earner (§6.4.2). Earnings from employment are otherwise counted in full before deductions other than tax and mandatory contributions (§6.2.1).
-Citations: §6.2.1, §6.4.1, §6.4.2
+Answer: The first $175 per month of household earnings from employment is disregarded (§6.4.1). This disregard applies once per household and not once per earner (§6.4.2).
+Citations: §6.4.1, §6.4.2
 ```
 
 
