@@ -6,7 +6,11 @@ clauses, checks for internal contradictions and dead cross-references, and
 produces a plain-language answer with exact clause citations. When the manual is
 broken or silent, it says so and directs the caseworker to escalate.
 
+> [!TIP]
+> **Windows Terminal Encoding**: If `§` displays as `Â§` or `` in your terminal output, run `chcp 65001` first (sets the console to UTF-8), or view files in a text editor instead.
+
 ## What it does and does not do
+
 
 Does:
 - Answer policy questions grounded strictly in the HSP manual.
@@ -70,7 +74,10 @@ GEMINI_API_KEY=your_actual_api_key_here
 GEMINI_MODEL=gemini-3.1-flash-lite
 ```
 
+If you see a 400 error mentioning "API key not valid," you likely still have the placeholder text in `.env` — open the file and confirm your real key replaced `your_actual_api_key_here`.
+
 ## Usage
+
 
 ### CLI Arguments & Options
 
