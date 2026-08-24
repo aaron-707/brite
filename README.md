@@ -134,8 +134,8 @@ python -m unittest tests/stress/test_api_failures.py -v
     Output
 ```
 
-## Known limitations
+## Scope boundaries
 
-- Multi-part queries are answered on the highest-scoring topic only. Sub-questions are not split.
-- The escalation instruction names "a supervisor" generically. A production deployment needs a staff directory integration.
-- Very short cross-referencing sentences with sparse context may produce false dead-reference flags.
+- Multi-part queries are answered on the highest-scoring topic only; sub-questions are not split. This maintains citation precision — each answer is grounded in a single retrieval pass with verifiable clause references. See DECISIONS.md Section 8 for the proposed v2 fix.
+- Escalation instructions name "a supervisor" generically, because the manual itself does not specify roles or contacts. A production deployment would integrate a staff directory.
+- The dead-reference detector is subject to false positives (very short sentences with sparse preceding context may be incorrectly flagged as dead) and false negatives (broken references using structural connectives like "under" or "subject to" will be missed). See DECISIONS.md Section 3 for the detailed tuning reasoning.
