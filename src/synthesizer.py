@@ -28,6 +28,9 @@ _GEMINI_ENDPOINT = (
     "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 )
 
+_last_call_time = 0.0
+
+
 
 def _cid_sort_key(c: str) -> tuple:
     parts = []
@@ -214,13 +217,22 @@ class Synthesizer:
         }
 
         try:
-            # Call the API with exponential backoff on 429 rate limit errors
+            # Call the API with pacing and exponential backoff on 429 rate limit errors
             import time
-            max_api_attempts = 3
+            global _last_call_time
+            max_api_attempts = 4  # Initial attempt + up to 3 retries
             backoff = 2.0
             backoff_cap = 16.0
             for attempt in range(max_api_attempts):
+                # Enforce minimum delay of 4.5 seconds between consecutive Gemini API calls
+                now = time.time()
+                elapsed = now - _last_call_time
+                if elapsed < 4.5:
+                    time.sleep(4.5 - elapsed)
+
                 resp = requests.post(url, json=body, headers=headers, timeout=60)
+                _last_call_time = time.time()
+
                 if resp.status_code == 429:
                     if attempt < max_api_attempts - 1:
                         sleep_time = min(backoff, backoff_cap)
@@ -231,6 +243,7 @@ class Synthesizer:
                 break
             else:
                 resp.raise_for_status()
+
 
             raw = resp.json()
             return self._parse_response(raw)

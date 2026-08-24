@@ -170,7 +170,8 @@ def run_evaluation() -> None:
                 })
             break
 
-        print(f"\nRunning {q['id']}: {q['query']}")
+        print(f"\nRunning question {i+1}/{len(QUESTIONS)} ({q['id']}): {q['query']}")
+
         api_error_sleep = 5  # default sleep; extended on rate-limit hits
         try:
             det_date = q.get("determination_date")

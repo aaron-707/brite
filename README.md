@@ -163,6 +163,9 @@ Runs the pipeline against the 20-question evaluation set. Results written to
 `tests/eval/results.json`. The harness does not exit non-zero on question failures
 — honest pass/fail reporting is the point. Final result: 20/20 PASS.
 
+*Note: Due to rate-limit-safe pacing of 4.5 seconds minimum between API calls, plus model generation time, the evaluation suite takes approximately 2 to 3 minutes to run to completion.*
+
+
 
 ### Stress tests
 

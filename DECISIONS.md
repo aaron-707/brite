@@ -188,7 +188,8 @@ Selection required navigating free-tier quota constraints across several Gemini 
 - `gemini-flash-latest`: exhibited intermittent 503 service overload errors under repeated evaluation requests.
 - `gemini-flash-lite-latest`: ran out of free-tier quota later in the session, and was also found to trigger a stylistic word truncation issue under strict JSON schema enforcement (truncating words like "resources" to "re." or "residency" to "re.", which caused overlap verification checks to fail).
 
-The final choice, `gemini-3.1-flash-lite`, was selected and validated via a full 20-question manual verification sweep. It consistently produced clean, non-truncated output with ample daily quota headroom.
+The final choice, `gemini-3.1-flash-lite`, was selected and validated via a full 20-question manual verification sweep. It consistently produced clean, non-truncated output with ample daily quota headroom. Selecting `gemini-3.1-flash-lite` (15 RPM / 1,500 RPD) over `gemini-3.5-flash` (20 RPD) was a pragmatic necessity due to these free-tier development constraints rather than a quality-first preference. A key trade-off is that the lite model is less capable at grounding and refusal precision than the full flash tier, presenting a known limitation in the RAG pipeline's overall reasoning capacity.
+
 
 
 ### Refusal and Conflict Output Design
