@@ -308,8 +308,8 @@ class Gate:
                     text = f"§{parent} {r.clause_text}"
                     check_clauses.append({"id": r.clause_id, "text": text})
             
-            top_cid = top_results[0].clause_id if top_results else None
-            conflicts.extend(self._find_numeric_contradictions(check_clauses, top_cid))
+            top_cids = {r.clause_id for r in top_results[:3]} if top_results else set()
+            conflicts.extend(self._find_numeric_contradictions(check_clauses, top_cids))
 
         if conflicts:
             return GateDecision(
@@ -324,7 +324,7 @@ class Gate:
             reason="Sufficient evidence found to answer the question.",
         )
 
-    def _find_numeric_contradictions(self, clauses: list[dict], top_cid: str | None = None) -> list[str]:
+    def _find_numeric_contradictions(self, clauses: list[dict], top_cids: set[str] | None = None) -> list[str]:
         conflicts = []
         anchor_unit_map = {}
 
@@ -357,8 +357,9 @@ class Gate:
                 all_vals.update(vals)
 
             if len(all_vals) > 1:
-                # If top_cid is specified, only flag the contradiction if it involves top_cid
-                if top_cid is not None and top_cid not in clause_to_values:
+                # If top_cids is specified, only flag the contradiction if at least one of the
+                # top 3 retrieved clauses is involved in the contradiction
+                if top_cids is not None and not (top_cids & clause_to_values.keys()):
                     continue
 
                 # Base-rule / exception pairs in the same section are NOT contradictions:

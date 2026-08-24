@@ -208,6 +208,8 @@ class CitationValidator:
 
                 overlap = len(filtered_sent_tokens & c_tokens) / len(filtered_sent_tokens)
                 threshold = self.min_continuation_overlap if is_continuation else self.min_support_overlap
+                if len(filtered_sent_tokens) <= 3 and len(filtered_sent_tokens & c_tokens) >= 1:
+                    return True
                 return overlap >= threshold
 
             if not valid_cited:
