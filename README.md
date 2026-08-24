@@ -173,25 +173,35 @@ python -m unittest tests/stress/test_api_failures.py -v
 
 ## Architecture overview
 
-```
-    Query & Date Flags (--as-of, --event-date)
-      ↓
-    Query Expansion (dynamic synonym map from Part 1 definitions,
-                     cached by corpus MD5 fingerprint)
-      ↓
-    Hybrid Retrieval (BM25 + TF-IDF, RRF fusion)
-      ↓
-    Temporal Resolver (resolves correct clause versions using dates)
-      ↓
-    Gate (dead reference detection + numeric contradiction
-          detection + soft fallback for zero-coverage queries)
-      ↓
-    Synthesizer (Gemini REST, temperature 0.1, strict grounding
-                 prompt, escalation instruction on conflict)
-      ↓
-    Citation Validator (checks citations, digit limits, and context)
-      ↓
-    Output
+```mermaid
+flowchart TD
+    A[Query] --> B[Query expansion]
+    B --> C[Hybrid retrieval]
+    C --> D[Temporal resolver]
+    D --> E[Gate]
+    E --> F[Synthesizer]
+    F --> G[Citation validator]
+    G --> H[Output]
+
+    B -.-> B1[Dynamic synonym map<br/>from Part 1 definitions]
+    D -.-> D1[Resolves clause versions<br/>using determination/event dates]
+    E -.-> E1[Dead references +<br/>numeric contradictions +<br/>soft fallback]
+    F -.-> F1[Gemini REST, temp 0.1<br/>strict grounding prompt]
+    G -.-> G1[Verifies every claim<br/>traces to a cited clause]
+
+    style A fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A
+    style H fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A
+    style B fill:#E1F5EE,stroke:#0F6E56,color:#04342C
+    style C fill:#E1F5EE,stroke:#0F6E56,color:#04342C
+    style D fill:#EEEDFE,stroke:#534AB7,color:#26215C
+    style E fill:#EEEDFE,stroke:#534AB7,color:#26215C
+    style F fill:#E1F5EE,stroke:#0F6E56,color:#04342C
+    style G fill:#EEEDFE,stroke:#534AB7,color:#26215C
+    style B1 fill:none,stroke:#B4B2A9,color:#5F5E5A
+    style D1 fill:none,stroke:#B4B2A9,color:#5F5E5A
+    style E1 fill:none,stroke:#B4B2A9,color:#5F5E5A
+    style F1 fill:none,stroke:#B4B2A9,color:#5F5E5A
+    style G1 fill:none,stroke:#B4B2A9,color:#5F5E5A
 ```
 
 ## Scope boundaries
