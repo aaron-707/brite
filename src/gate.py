@@ -344,18 +344,33 @@ class Gate:
                     anchor_unit_map[key].append((clause_id, float(value)))
 
         for (anchor, unit), entries in anchor_unit_map.items():
-            distinct_values = {}
+            clause_to_values = {}
             for clause_id, value in entries:
-                if value not in distinct_values:
-                    distinct_values[value] = clause_id
-            if len(distinct_values) > 1:
+                if clause_id not in clause_to_values:
+                    clause_to_values[clause_id] = set()
+                clause_to_values[clause_id].add(value)
+
+            # Check if we have multiple distinct values across the clauses
+            all_vals = set()
+            for vals in clause_to_values.values():
+                all_vals.update(vals)
+
+            if len(all_vals) > 1:
                 # Base-rule / exception pairs in the same section are NOT contradictions:
-                prefixes = { ".".join(cid.split(".")[:2]) for cid in distinct_values.values() }
+                prefixes = { ".".join(cid.split(".")[:2]) for cid in clause_to_values.keys() }
                 if len(prefixes) <= 1:
                     continue
+
+                def format_vals(vals_set):
+                    sorted_vals = sorted(list(vals_set))
+                    formatted = [str(int(v) if v == int(v) else v) for v in sorted_vals]
+                    if len(formatted) > 1:
+                        return " or ".join(formatted)
+                    return formatted[0]
+
                 parts = "; ".join(
-                    f"§{cid} states {int(v) if v == int(v) else v}"
-                    for v, cid in distinct_values.items()
+                    f"§{cid} states {format_vals(vals)}"
+                    for cid, vals in sorted(clause_to_values.items())
                 )
                 conflicts.append(
                     f"Numeric contradiction referencing §{anchor}: "
