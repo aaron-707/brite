@@ -34,7 +34,9 @@ models/
 data/.expansion_cache.json
 
 # Local files
-1/
+/1/1 - The Grounded Answer.docx
+/1/1 - The Grounded Answer.txt
+/1/Data pack/README.md
 *.pdf
 # Root-level scratch Python scripts
 /*.py
