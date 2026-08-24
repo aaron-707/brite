@@ -247,6 +247,9 @@ is capped at 16 seconds per retry with a maximum of 3 attempts.
 * Q19 PASS — ANSWER, boundary-spanning proration resolved correctly, citing §5.3, §7.4.3, §6.4.1.
 * Q20 PASS — ANSWER, pre-computed prorated earnings disregard of $149.33 per month for 1 Feb–1 Apr 2026 claim stated, citing §6.4.1, §5.3, §7.4.3. Hand-verified: (28×$120 + 32×$175) / 60 = $149.33.
 
+*Note on evaluation brittleness*: The pass criteria for Q16 and Q18 enforce strict phrasing assertions (requiring specific terms like "operative" and "downstream" or "consequence" to be present in the generated answer). Because these checks depend on the LLM's exact word choice at a temperature that is not fully deterministic, they are more brittle than the citation or numeric checks. A correct and policy-compliant answer that is phrased slightly differently could technically fail this evaluation step.
+
+
 ### 5.1 Validator Hardening against Adversarial Exploits
 
 To prevent adversarial sentences from exploiting the RAG context or the validation logic, we hardened the `CitationValidator` through the following mechanisms:
