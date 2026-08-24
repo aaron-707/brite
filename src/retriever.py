@@ -342,16 +342,34 @@ class HybridRetriever:
             )
             return {}
 
+    def _get_singular_forms(self, token: str) -> list[str]:
+        forms = []
+        if token.endswith("ies") and len(token) > 3:
+            forms.append(token[:-3] + "y")
+        if token.endswith("es") and len(token) > 2:
+            forms.append(token[:-2])
+        if token.endswith("s") and not token.endswith("ss") and len(token) > 1:
+            forms.append(token[:-1])
+        return forms
+
     def _expand_query(self, query: str) -> str:
-        tokens = query.lower().split()
+        raw_tokens = query.lower().split()
+        tokens = [re.sub(r"[^\w\s]", "", t) for t in raw_tokens]
         expansions = []
         for i in range(len(tokens) - 1):
             bigram = tokens[i] + " " + tokens[i + 1]
             if bigram in self._expansion_map:
                 expansions.extend(self._expansion_map[bigram])
         for token in tokens:
+            if not token:
+                continue
             if token in self._expansion_map:
                 expansions.extend(self._expansion_map[token])
+            else:
+                for singular in self._get_singular_forms(token):
+                    if singular in self._expansion_map:
+                        expansions.extend(self._expansion_map[singular])
+                        break
         if expansions:
             return query + " " + " ".join(set(expansions))
         return query

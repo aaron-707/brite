@@ -81,6 +81,8 @@ changes, the map regenerates automatically.
 Cost: one Gemini API call per corpus update, not per query. The manual changes
 quarterly — so this runs at most a handful of times per year in production.
 
+Token Normalization: To prevent synonym matching failures on punctuation (e.g. "cars." from a trailing sentence period) or plurals (e.g. "cars" failing to match the cached key "car"), token cleaning strips non-alphanumeric punctuation and falls back to singular forms (stripping trailing "s") before querying the expansion map. This allows adversarial assertion-style phrasings like "allowed to own 5 cars" to expand to "motor vehicle" and correctly retrieve §2.4.2.
+
 Failure mode: if the Gemini call fails at startup, the retriever degrades to an
 empty expansion map and emits a warning. The soft fallback (see Section 3)
 handles zero-coverage queries gracefully.
