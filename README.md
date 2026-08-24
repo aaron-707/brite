@@ -10,7 +10,7 @@ broken or silent, it says so and directs the caseworker to escalate.
 
 Does:
 - Answer policy questions grounded strictly in the HSP manual.
-- Parse and apply amendments from `data/amendment-2026-01.md` alongside the base manual `data/policy-manual.md`.
+- Parse and apply amendments from `1/Data pack/amendment-2026-01.md` alongside the base manual `1/Data pack/policy-manual.md`.
 - Support date-based temporal routing using determination and event dates to resolve amended clauses.
 - Cite the exact clause (§X.Y.Z) for every substantive claim.
 - Compute and state the exact prorated dollar figure for claim periods spanning the 1 March 2026 amendment boundary.
