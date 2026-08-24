@@ -38,5 +38,6 @@ data/.expansion_cache.json
 /1/1 - The Grounded Answer.txt
 /1/Data pack/README.md
 *.pdf
-# Root-level scratch Python scripts
-/*.py
+# Scratch / local debugging
+scratch/
+
