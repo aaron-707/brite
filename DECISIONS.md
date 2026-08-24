@@ -176,15 +176,19 @@ self-contained. The static threshold was accepted because the sweep above confir
 ## 4. Synthesizer (Commit cf6c919)
 
 Implementation: Google Gemini REST API via raw requests. Model:
-gemini-flash-lite-latest. Temperature: 0.1.
+gemini-3.1-flash-lite. Temperature: 0.1.
 
 What I rejected: google-generativeai SDK. Adds a bulky dependency with its own
 version management surface. Raw requests gives identical capability with one
 fewer dependency.
 
-Why gemini-flash-lite-latest over newer models: standard generation config parameters
-(temperature, top_p, top_k) are reliably supported. Preview models have
-inconsistent config support which breaks the determinism this system requires.
+Model Selection and Quota Troubleshooting:
+Selection required navigating free-tier quota constraints across several Gemini model variants during development:
+- `gemini-3.5-flash`: limited by a strict 20/day request cap.
+- `gemini-flash-latest`: exhibited intermittent 503 service overload errors under repeated evaluation requests.
+- `gemini-flash-lite-latest`: ran out of free-tier quota later in the session, and was also found to trigger a stylistic word truncation issue under strict JSON schema enforcement (truncating words like "resources" to "re." or "residency" to "re.", which caused overlap verification checks to fail).
+
+The final choice, `gemini-3.1-flash-lite`, was selected and validated via a full 20-question manual verification sweep. It consistently produced clean, non-truncated output with ample daily quota headroom.
 
 
 ### Refusal and Conflict Output Design

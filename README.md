@@ -67,7 +67,7 @@ copy .env.example .env
 Open `.env` and set your Gemini API key:
 ```env
 GEMINI_API_KEY=your_actual_api_key_here
-GEMINI_MODEL=gemini-flash-lite-latest
+GEMINI_MODEL=gemini-3.1-flash-lite
 ```
 
 ## Usage

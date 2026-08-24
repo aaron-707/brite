@@ -131,7 +131,7 @@ class Synthesizer:
                 "GEMINI_API_KEY not set. Add it to your .env file."
             )
 
-        self.model = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
+        self.model = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite")
 
         # Load retry config
         config_path = Path(config_path)

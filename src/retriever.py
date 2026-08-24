@@ -245,7 +245,7 @@ class HybridRetriever:
 
         import os
         api_key = os.environ.get("GEMINI_API_KEY", "")
-        model = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
+        model = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite")
         url = (
             f"https://generativelanguage.googleapis.com/v1beta"
             f"/models/{model}:generateContent"

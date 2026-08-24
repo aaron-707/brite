@@ -11,8 +11,8 @@ from src.pipeline import Pipeline
 class TestMultipartQueries(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        # Override GEMINI_MODEL to gemini-3.5-flash-lite to avoid rate limits
-        os.environ["GEMINI_MODEL"] = "gemini-3.5-flash-lite"
+        # Override GEMINI_MODEL to gemini-3.1-flash-lite to avoid rate limits
+        os.environ["GEMINI_MODEL"] = "gemini-3.1-flash-lite"
         cls.pipeline = Pipeline()
 
     def test_run_multipart_queries(self):
