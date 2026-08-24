@@ -77,6 +77,8 @@ If the retrieved clauses do not address the caseworker's question at all:
 - Write for a front-line caseworker, not a lawyer. Use clear, simple language.
 - Use short sentences. Avoid complex subordinate clauses.
 - Do not use formal legalistic terms like "aforementioned", "pursuant to", or "herein".
+- Do not use mid-word abbreviations or cut-offs (e.g. write "resources" instead of "re.", "section" instead of "sec.").
+
 
 6. OUTPUT FORMAT
 Return your response as a JSON object with the following fields:
@@ -201,6 +203,7 @@ class Synthesizer:
                 "temperature": 0.1,
                 "responseMimeType": "application/json",
                 "responseSchema": _RESPONSE_SCHEMA,
+                "maxOutputTokens": 2048,
             },
         }
 
